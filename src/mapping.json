@@ -1,0 +1,141 @@
+{
+  "mappings": {
+    "properties": {
+      "repo_name": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "owner": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "origin": {
+        "type": "keyword"
+      },
+      "commit_date": {
+        "type": "date"
+      },
+      "processed_at": {
+        "type": "date"
+      },
+      "commit_sha": {
+        "type": "keyword"
+      },
+      "email": {
+        "type": "keyword"
+      },
+      "name": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "snapshot_url": {
+        "type": "keyword"
+      },
+      "keyword_matches": {
+        "type": "integer"
+      },
+      "files_processed": {
+        "type": "integer"
+      },
+      "file_types": {
+        "type": "keyword"
+      },
+      "keyword_counts": {
+        "properties": {
+          "ephemeral-rollups-sdk": {
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "files": {
+                "type": "keyword"
+              }
+            }
+          },
+          "ephemeral_macro": {
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "files": {
+                "type": "keyword"
+              }
+            }
+          },
+          "commit_macro": {
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "files": {
+                "type": "keyword"
+              }
+            }
+          },
+          "delegate_macro": {
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "files": {
+                "type": "keyword"
+              }
+            }
+          },
+          "delegate_account": {
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "files": {
+                "type": "keyword"
+              }
+            }
+          },
+          "undelegate_account": {
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "files": {
+                "type": "keyword"
+              }
+            }
+          },
+          "commit_accounts": {
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "files": {
+                "type": "keyword"
+              }
+            }
+          },
+          "commit_and_undelegate_accounts": {
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "files": {
+                "type": "keyword"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

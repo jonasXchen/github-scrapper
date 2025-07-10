@@ -1,0 +1,5 @@
+.env
+results.json
+service-account.json
+node_modules/
+.service-account.json
