@@ -37,7 +37,11 @@ pub async fn ingest_to_elasticsearch<T: Serialize>(
     Ok(())
 }
 
-pub async fn ingest_via_logstash(endpoint: &str, api_key: &str, payload: &Value) -> Result<()> {
+pub async fn ingest_via_logstash(
+    endpoint: &str,
+    api_key: &str,
+    payload: &Value,
+) -> Result<String, anyhow::Error> {
     let client = Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()?; // This can also error
@@ -60,5 +64,5 @@ pub async fn ingest_via_logstash(endpoint: &str, api_key: &str, payload: &Value)
         bail!("Logstash ingest failed: {} - {}", status, body);
     }
 
-    Ok(())
+    Ok(format!("Status: {}, Body: {}", status, body))
 }

@@ -6,10 +6,14 @@ mod types;
 
 use anyhow::Result;
 use dotenvy::dotenv;
+use elk::ingest_via_logstash;
 use github::{classify_github_url, fetch_user_repos, handle_github_repo_url, GitHubUrlType};
 use reqwest::Client;
-use sheets::{init_sheets, read_from_sheet, write_row, write_to_cell};
-use std::{env, fs::File, io::Write};
+use sheets::{
+    clean_column_names, init_sheets, read_columns_from_sheet, read_from_sheet, write_row,
+    write_to_cell,
+};
+use std::{env, fs::File, io::Write, vec};
 use types::GitHubUpdateData;
 
 #[tokio::main]
@@ -36,12 +40,43 @@ async fn main() -> Result<()> {
 
     let sheets = init_sheets().await?;
 
-    let repos = read_from_sheet(&sheets, &spreadsheet_id, &read_sheet_name, &range).await?;
+    // let repos = read_from_sheet(&sheets, &spreadsheet_id, &read_sheet_name, &range).await?;
+    let columns =
+        read_columns_from_sheet(&sheets, &spreadsheet_id, &read_sheet_name, &range).await?;
+
+    let fields = vec![
+        "snapshot_url",
+        "presentation_link",
+        "technical_link",
+        "files_processed",
+        "location",
+        "tracks",
+        "contact",
+    ];
+
+    let cleaned_columns = clean_column_names(
+        columns,
+        &[
+            (vec!["gh", "github", "repo"], "snapshot_url"),
+            (vec!["presentation"], "presentation_link"),
+            (vec!["website"], "website_link"),
+            (vec!["technical", "demo"], "technical_link"),
+            (vec!["files_processed"], "files_processed"),
+            (vec!["location", "country"], "location"),
+            (vec!["track"], "tracks"),
+            (vec!["contact", "team", "twitter"], "contact"),
+            (vec!["wallet", "solana"], "wallet"),
+        ],
+    );
+    let repos = cleaned_columns
+        .get("snapshot_url")
+        .cloned()
+        .unwrap_or_default();
 
     let client = Client::new();
     let mut final_results: Vec<GitHubUpdateData> = Vec::new();
     let mut row_idx = 2;
-    let row_skip = 22;
+    let row_skip = 0;
     let mut row_reading = row_idx + row_skip;
     for (idx, repo_url) in repos.iter().enumerate().skip(row_skip) {
         println!(
@@ -114,7 +149,7 @@ async fn main() -> Result<()> {
             GitHubUrlType::Repo { owner, repo_name } => {
                 println!("📦 Detected GitHub repo: {}/{}", owner, repo_name);
                 let repo_url = format!("https://github.com/{}/{}", owner, repo_name);
-                let (update_data, error_message) = handle_github_repo_url(
+                let (mut update_data, error_message) = handle_github_repo_url(
                     &client,
                     &repo_url,
                     &github_token,
@@ -124,6 +159,20 @@ async fn main() -> Result<()> {
                     &read_sheet_name,
                 )
                 .await?;
+
+                // Only ingest if it's not empty/default
+                if !update_data.is_empty() {
+                    update_data.add_fields_if_exist(&cleaned_columns, &fields, row_idx);
+                    let response = ingest_via_logstash(
+                        "https://es.metacamp.sg/logstash/",
+                        "ELK",
+                        &serde_json::to_value(&update_data)?,
+                    )
+                    .await?;
+
+                    println!("Ingest response: {}", response);
+                }
+
                 final_results.push(update_data.clone());
 
                 // Write the update data to Sheets

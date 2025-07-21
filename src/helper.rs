@@ -3,6 +3,7 @@ use crate::types;
 use chrono::Utc;
 use reqwest::Response;
 use serde_json::json;
+use std::collections::HashMap;
 use tokio::time::{sleep, Duration};
 use types::GitHubUpdateData;
 use types::RepoMap;
@@ -53,6 +54,9 @@ pub fn format_for_mapping(
         origin: origin.to_string(),
         file_types: file_types.to_string(),
         files_processed: files_processed.to_string(),
+
+        // Optional fields can be added here if needed
+        ..Default::default()
     };
 
     formatted_result

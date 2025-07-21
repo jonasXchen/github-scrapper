@@ -1,10 +1,9 @@
 use anyhow::Result;
 use google_sheets4::{api::ValueRange, Sheets};
 use hyper_rustls::HttpsConnectorBuilder;
+use std::collections::HashMap;
 use std::env;
 use yup_oauth2::{read_service_account_key, ServiceAccountAuthenticator};
-
-use crate::helper::check_api_request_limit;
 
 pub async fn init_sheets() -> Result<Sheets> {
     let creds = read_service_account_key(
@@ -41,6 +40,65 @@ pub async fn read_from_sheet(
         .iter()
         .map(|r| r.get(0).unwrap_or(&"".to_string()).clone())
         .collect())
+}
+
+pub async fn read_columns_from_sheet(
+    sheets: &Sheets,
+    spreadsheet_id: &str,
+    sheet_name: &str,
+    range: &str,
+) -> Result<HashMap<String, Vec<String>>, anyhow::Error> {
+    let read_range = format!("'{}'!{}", sheet_name, range);
+
+    let resp = sheets
+        .spreadsheets()
+        .values_get(spreadsheet_id, &read_range)
+        .doit()
+        .await?;
+
+    let rows = resp.1.values.unwrap_or_default();
+
+    if rows.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let headers = &rows[0];
+    let mut columns: HashMap<String, Vec<String>> = HashMap::new();
+
+    for row in rows.iter().skip(1) {
+        for (i, header) in headers.iter().enumerate() {
+            let value = row.get(i).cloned().unwrap_or_default();
+            columns.entry(header.clone()).or_default().push(value);
+        }
+    }
+
+    Ok(columns)
+}
+
+pub fn clean_column_names(
+    original_columns: HashMap<String, Vec<String>>,
+    rules: &[(Vec<&str>, &str)],
+) -> HashMap<String, Vec<String>> {
+    let mut cleaned: HashMap<String, Vec<String>> = HashMap::new();
+
+    for (original_name, values) in original_columns {
+        let renamed = rename_column(&original_name, rules);
+        cleaned.entry(renamed).or_default().extend(values);
+    }
+
+    cleaned
+}
+
+pub fn rename_column(column_name: &str, rules: &[(Vec<&str>, &str)]) -> String {
+    let lower = column_name.to_lowercase();
+
+    for (keywords, new_name) in rules {
+        if keywords.iter().any(|k| lower.contains(&k.to_lowercase())) {
+            return new_name.to_string();
+        }
+    }
+
+    column_name.to_string()
 }
 
 pub async fn write_to_cell(

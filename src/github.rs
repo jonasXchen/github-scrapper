@@ -304,14 +304,6 @@ pub async fn handle_github_repo_url(
                     &file_types,
                     &files_processed,
                 );
-
-                ingest_via_logstash(
-                    "https://es.metacamp.sg/logstash/",
-                    "ELK",
-                    &serde_json::to_value(&formatted_summary)?,
-                )
-                .await?;
-
                 Ok((formatted_summary, None))
             }
             None => Ok((

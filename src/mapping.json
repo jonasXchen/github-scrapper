@@ -20,6 +20,30 @@
       "origin": {
         "type": "keyword"
       },
+      "location": {
+        "type": "keyword"
+      },
+      "presentation_link": {
+        "type": "keyword"
+      },
+      "technical_link": {
+        "type": "keyword"
+      },
+      "website_link": {
+        "type": "keyword"
+      },
+      "social_link": {
+        "type": "keyword"
+      },
+      "wallet": {
+        "type": "keyword"
+      },
+      "tracks": {
+        "type": "keyword"
+      },
+      "contact": {
+        "type": "text"
+      },
       "commit_date": {
         "type": "date"
       },
