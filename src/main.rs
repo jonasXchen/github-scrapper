@@ -90,7 +90,7 @@ async fn main() -> Result<()> {
                 let (repos, total) = fetch_user_repos(&client, &owner, &github_token).await;
                 println!("🔍 Found {} repos for {}", total, owner);
                 for repo_url in repos {
-                    let (update_data, error_message) = handle_github_repo_url(
+                    let (mut update_data, error_message) = handle_github_repo_url(
                         &client,
                         &repo_url,
                         &github_token,
@@ -100,6 +100,19 @@ async fn main() -> Result<()> {
                         &read_sheet_name,
                     )
                     .await?;
+
+                    // Only ingest if it's not empty/default
+                    if !update_data.is_empty() {
+                        update_data.add_fields_if_exist(&cleaned_columns, &fields, row_idx);
+                        let response = ingest_via_logstash(
+                            "https://es.metacamp.sg/logstash/",
+                            "ELK",
+                            &serde_json::to_value(&update_data)?,
+                        )
+                        .await?;
+
+                        println!("Ingest response: {}", response);
+                    }
                     final_results.push(update_data.clone());
 
                     // Write the update data to Sheets
