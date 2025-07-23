@@ -66,6 +66,7 @@ async fn main() -> Result<()> {
             (vec!["track"], "tracks"),
             (vec!["contact", "team", "twitter"], "contact"),
             (vec!["wallet", "solana"], "wallet"),
+            (vec!["twitter", "social link"], "social_link"),
         ],
     );
     let repos = cleaned_columns
