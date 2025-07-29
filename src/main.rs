@@ -6,14 +6,17 @@ mod types;
 
 use anyhow::Result;
 use dotenvy::dotenv;
-use elk::ingest_via_logstash;
-use github::{classify_github_url, fetch_user_repos, handle_github_repo_url, GitHubUrlType};
+use elk::{es_document_exists, ingest_via_logstash};
+use github::{
+    classify_github_url, fetch_user_repos, get_github_repo, handle_github_repo_url,
+    parse_github_url, search_code, GitHubUrlType,
+};
 use reqwest::Client;
 use sheets::{
     clean_column_names, init_sheets, read_columns_from_sheet, read_from_sheet, write_row,
     write_to_cell,
 };
-use std::{env, fs::File, io::Write, vec};
+use std::{collections::HashSet, env, fs::File, io::Write, vec};
 use types::GitHubUpdateData;
 
 #[tokio::main]
@@ -76,6 +79,105 @@ async fn main() -> Result<()> {
 
     let client = Client::new();
     let mut final_results: Vec<GitHubUpdateData> = Vec::new();
+
+    // Get unique repos based on queries
+    let queries = [
+        "\"ephemeral-rollups-sdk\" in:file filename:package.json",
+        "\"ephemeral-rollups-sdk\" in:file filename:Cargo.toml",
+    ];
+    let mut seen_repos: HashSet<String> = HashSet::new();
+    for query in queries {
+        match search_code(query, &github_token).await {
+            Ok(items) => {
+                for item in items {
+                    if let Some(repo_url) = get_github_repo(&item.html_url) {
+                        if seen_repos.contains(&repo_url) {
+                            continue;
+                        }
+                        seen_repos.insert(repo_url.clone());
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Error fetching results for '{}': {}", query, e);
+            }
+        }
+    }
+
+    // Filter repos
+    let exclude_keywords = vec!["magicblock-labs"];
+    let filtered_repo_urls: Vec<String> = seen_repos
+        .into_iter()
+        .filter(|repo_url| {
+            let url_lower = repo_url.to_lowercase();
+            !exclude_keywords
+                .iter()
+                .any(|kw| url_lower.contains(&kw.to_lowercase()))
+        })
+        .collect();
+
+    // Add repo to sheets
+    let mut search_row_idx = 2;
+    for repo_url in &filtered_repo_urls {
+        println!("Processing {} ...", repo_url);
+
+        let (mut update_data, error_message) = handle_github_repo_url(
+            &client,
+            repo_url,
+            &github_token,
+            &KEYWORDS,
+            &ALLOWED_EXTENSIONS,
+            100,
+            &read_sheet_name,
+        )
+        .await?;
+
+        // Ingest data into elasticsearch
+        let es_index = env::var("ES_INDEX")?;
+        let doc_id = &update_data.commit_sha;
+        let document_exist = es_document_exists(&es_index, doc_id).await?;
+        if !document_exist {
+            // Only ingest if it's not empty/default
+            if !update_data.is_empty() {
+                update_data.add_fields_if_exist(&cleaned_columns, &fields, search_row_idx);
+                let response = ingest_via_logstash(
+                    "https://es.metacamp.sg/logstash/",
+                    "ELK",
+                    &serde_json::to_value(&update_data)?,
+                )
+                .await?;
+
+                println!("Ingest response: {}", response);
+            }
+            final_results.push(update_data.clone());
+        }
+
+        let search_update_data_col = env::var("SEARCH_UPDATE_DATA_COLUMN")?;
+        let search_write_sheet_name = env::var("SEARCH_WRITE_SHEET_NAME")?;
+        println!("Writing {} row", search_row_idx);
+        write_row(
+            &sheets,
+            &spreadsheet_id,
+            &search_write_sheet_name,
+            &search_update_data_col,
+            search_row_idx,
+            vec![
+                repo_url.clone(),
+                serde_json::to_string(&update_data)?,
+                update_data.keyword_matches.to_string(),
+                update_data.snapshot_url,
+            ],
+        )
+        .await?;
+
+        println!(
+            "✅ Row {} updated in {}",
+            search_row_idx, search_write_sheet_name
+        );
+
+        search_row_idx += 1;
+    }
+
     let mut row_idx = 2;
     let row_skip = 0;
     let mut row_reading = row_idx + row_skip;

@@ -10,7 +10,7 @@ use reqwest::{
     Client,
 };
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use types::KeywordResult;
 
@@ -40,6 +40,24 @@ pub enum GitHubUrlType {
     Invalid,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GitHubSearchResponse {
+    pub items: Vec<GitHubCodeItem>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GitHubCodeItem {
+    pub repository: Repository,
+    pub html_url: String,
+    pub path: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Repository {
+    pub full_name: String,
+    pub html_url: String,
+}
+
 pub fn classify_github_url(url: &str) -> GitHubUrlType {
     if let Ok(parsed_url) = Url::parse(url) {
         let segments: Vec<_> = parsed_url
@@ -58,6 +76,10 @@ pub fn classify_github_url(url: &str) -> GitHubUrlType {
     } else {
         GitHubUrlType::Invalid
     }
+}
+
+pub fn get_github_repo(url: &str) -> Option<String> {
+    parse_github_url(url).map(|(owner, repo)| format!("https://github.com/{}/{}", owner, repo))
 }
 
 pub fn parse_github_url(url: &str) -> Option<(String, String)> {
@@ -317,4 +339,26 @@ pub async fn handle_github_repo_url(
             Some("Invalid GitHub URL".to_string()),
         ))
     }
+}
+
+pub async fn search_code(
+    query: &str,
+    token: &str,
+) -> Result<Vec<GitHubCodeItem>, Box<dyn std::error::Error>> {
+    let url = format!(
+        "https://api.github.com/search/code?q={}&per_page=1000",
+        query
+    );
+    let client = Client::new();
+
+    let res: GitHubSearchResponse = client
+        .get(&url)
+        .header("User-Agent", "rust-script")
+        .bearer_auth(token)
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    Ok(res.items)
 }

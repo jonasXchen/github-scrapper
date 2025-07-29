@@ -1,5 +1,7 @@
+use std::env;
+
 use anyhow::{bail, Result};
-use reqwest::Client;
+use reqwest::{Client, StatusCode};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -65,4 +67,32 @@ pub async fn ingest_via_logstash(
     }
 
     Ok(format!("Status: {}, Body: {}", status, body))
+}
+
+pub async fn es_document_exists(es_index: &str, doc_id: &str) -> Result<bool> {
+    let client = Client::new();
+
+    let es_endpoint = env::var("ES_ENDPOINT")?;
+    let es_apikey = env::var("ES_APIKEY")?;
+    let url = format!("{}/{}/_doc/{}", es_endpoint, es_index, doc_id);
+    println!("{}", url);
+
+    let res = client
+        .get(&url)
+        .header("Authorization", format!("ApiKey {}", es_apikey)) // <-- Add auth header
+        .send()
+        .await?;
+
+    match res.status() {
+        StatusCode::OK => Ok(true),         // document exists
+        StatusCode::NOT_FOUND => Ok(false), // document does not exist
+        other => {
+            let err_body = res.text().await.unwrap_or_default();
+            Err(anyhow::anyhow!(
+                "Failed to check doc existence ({}): {}",
+                other,
+                err_body
+            ))
+        }
+    }
 }
