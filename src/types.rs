@@ -9,6 +9,17 @@ pub struct KeywordResult {
 }
 pub type RepoMap = HashMap<String, KeywordResult>;
 
+pub struct Config {
+    pub read_sheet_name: String,
+    pub write_sheet_name: String,
+    pub read_range: String,
+    pub user_col: String,
+    pub update_data_col: String,
+    pub search_update_data_col: String,
+    pub search_write_sheet_name: String,
+    pub spreadsheet_id: String,
+}
+
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct GitHubUpdateData {
     pub commit_sha: String,

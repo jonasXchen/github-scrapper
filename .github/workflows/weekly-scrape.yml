@@ -1,0 +1,47 @@
+name: Weekly GitHub Scraper Run
+
+on:
+  schedule:
+    # adjust cron as needed; this example runs every Monday at 02:00 UTC
+    - cron: "0 2 * * 1"
+  workflow_dispatch: # manual trigger possible too
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60 # script may take ~30 min
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Load .env file
+        run: |
+          if [ -f .env ]; then
+            echo "Loading .env …"
+            export $(grep -v '^#' .env | xargs)
+          else
+            echo "⚠️ .env file not found!"
+          fi
+
+      - name: Build scraper
+        run: cargo build --release
+
+      - name: Run scraper
+        run: cargo run --release

@@ -17,17 +17,25 @@ use sheets::{
     write_to_cell,
 };
 use std::{collections::HashSet, env, fs::File, io::Write, vec};
-use types::GitHubUpdateData;
+use types::{Config, GitHubUpdateData};
 
 #[tokio::main]
+
 async fn main() -> Result<()> {
     dotenv().expect("Failed to load .env file");
 
     let github_token = env::var("PRIVATE_GITHUB_TOKEN")?;
-    let spreadsheet_id = env::var("SPREADSHEET_ID")?;
-    let read_sheet_name = env::var("READ_SHEET_NAME")?;
-    let write_sheet_name = env::var("WRITE_SHEET_NAME")?;
-    let range = env::var("READ_RANGE")?;
+
+    let config = Config {
+        spreadsheet_id: "1aYacUptAwX2bqbvy9uZFdzcVjdTB7RXmjqLo851NTxs".to_string(),
+        read_sheet_name: "Headhunting".to_string(),
+        write_sheet_name: "Headhunting".to_string(),
+        read_range: "A:C".to_string(),
+        user_col: "A".to_string(),
+        update_data_col: "D".to_string(),
+        search_update_data_col: "A".to_string(),
+        search_write_sheet_name: "Search".to_string(),
+    };
 
     const ALLOWED_EXTENSIONS: [&str; 4] = [".toml", ".json", ".rs", ".ts"];
     const KEYWORDS: [&str; 8] = [
@@ -43,9 +51,14 @@ async fn main() -> Result<()> {
 
     let sheets = init_sheets().await?;
 
-    // let repos = read_from_sheet(&sheets, &spreadsheet_id, &read_sheet_name, &range).await?;
-    let columns =
-        read_columns_from_sheet(&sheets, &spreadsheet_id, &read_sheet_name, &range).await?;
+    // let repos = read_from_sheet(&sheets, &config.spreadsheet_id, &config.read_sheet_name, &config.read_range).await?;
+    let columns = read_columns_from_sheet(
+        &sheets,
+        &config.spreadsheet_id,
+        &config.read_sheet_name,
+        &config.read_range,
+    )
+    .await?;
 
     let fields = vec![
         "snapshot_url",
@@ -115,6 +128,10 @@ async fn main() -> Result<()> {
                 .any(|kw| url_lower.contains(&kw.to_lowercase()))
         })
         .collect();
+    println!(
+        "Found {} unique repos from queries",
+        filtered_repo_urls.len()
+    );
 
     // Add repo to sheets
     let mut search_row_idx = 2;
@@ -128,7 +145,7 @@ async fn main() -> Result<()> {
             &KEYWORDS,
             &ALLOWED_EXTENSIONS,
             100,
-            &read_sheet_name,
+            &config.read_sheet_name,
         )
         .await?;
 
@@ -152,14 +169,12 @@ async fn main() -> Result<()> {
             final_results.push(update_data.clone());
         }
 
-        let search_update_data_col = env::var("SEARCH_UPDATE_DATA_COLUMN")?;
-        let search_write_sheet_name = env::var("SEARCH_WRITE_SHEET_NAME")?;
         println!("Writing {} row", search_row_idx);
         write_row(
             &sheets,
-            &spreadsheet_id,
-            &search_write_sheet_name,
-            &search_update_data_col,
+            &config.spreadsheet_id,
+            &config.search_write_sheet_name,
+            &config.search_update_data_col,
             search_row_idx,
             vec![
                 repo_url.clone(),
@@ -172,19 +187,19 @@ async fn main() -> Result<()> {
 
         println!(
             "✅ Row {} updated in {}",
-            search_row_idx, search_write_sheet_name
+            search_row_idx, &config.search_write_sheet_name,
         );
 
         search_row_idx += 1;
     }
 
     let mut row_idx = 2;
-    let row_skip = 0;
+    let row_skip = 2;
     let mut row_reading = row_idx + row_skip;
     for (idx, repo_url) in repos.iter().enumerate().skip(row_skip) {
         println!(
             "Reading row {} in {}: {}",
-            row_reading, read_sheet_name, repo_url
+            row_reading, config.read_sheet_name, repo_url
         );
         match classify_github_url(&repo_url) {
             GitHubUrlType::User(owner) => {
@@ -200,7 +215,7 @@ async fn main() -> Result<()> {
                         &KEYWORDS,
                         &ALLOWED_EXTENSIONS,
                         100,
-                        &read_sheet_name,
+                        &config.read_sheet_name,
                     )
                     .await?;
 
@@ -219,25 +234,23 @@ async fn main() -> Result<()> {
                     final_results.push(update_data.clone());
 
                     // Write the update data to Sheets
-                    let user_col = env::var("USER_COLUMN")?;
-                    let update_data_col = env::var("UPDATE_DATA_COLUMN")?;
                     write_row(
                         &sheets,
-                        &spreadsheet_id,
-                        &write_sheet_name,
-                        &user_col,
+                        &config.spreadsheet_id,
+                        &config.write_sheet_name,
+                        &config.user_col,
                         row_idx,
-                        vec![owner.clone(), read_sheet_name.clone()],
+                        vec![owner.clone(), config.read_sheet_name.clone()],
                     )
                     .await?;
                     if let Some(error) = error_message {
                         println!("❌ Error processing {}: {}", repo_url, error);
-                        // Write error to update_data_col
+                        // Write error to config.update_data_col
                         write_to_cell(
                             &sheets,
-                            &spreadsheet_id,
-                            &write_sheet_name,
-                            &update_data_col,
+                            &config.spreadsheet_id,
+                            &config.write_sheet_name,
+                            &config.update_data_col,
                             row_idx,
                             &format!("❌ Error: {}", error),
                         )
@@ -245,9 +258,9 @@ async fn main() -> Result<()> {
                     } else {
                         write_row(
                             &sheets,
-                            &spreadsheet_id,
-                            &write_sheet_name,
-                            &update_data_col,
+                            &config.spreadsheet_id,
+                            &config.write_sheet_name,
+                            &config.update_data_col,
                             row_idx,
                             vec![
                                 serde_json::to_string(&update_data)?,
@@ -272,7 +285,7 @@ async fn main() -> Result<()> {
                     &KEYWORDS,
                     &ALLOWED_EXTENSIONS,
                     100,
-                    &read_sheet_name,
+                    &config.read_sheet_name,
                 )
                 .await?;
 
@@ -292,15 +305,14 @@ async fn main() -> Result<()> {
                 final_results.push(update_data.clone());
 
                 // Write the update data to Sheets
-                let update_data_col = env::var("UPDATE_DATA_COLUMN")?;
                 if let Some(error) = error_message {
                     println!("❌ Error processing {}: {}", repo_url, error);
-                    // Write error to update_data_col
+                    // Write error to config.update_data_col
                     write_to_cell(
                         &sheets,
-                        &spreadsheet_id,
-                        &write_sheet_name,
-                        &update_data_col,
+                        &config.spreadsheet_id,
+                        &config.write_sheet_name,
+                        &config.update_data_col,
                         row_idx + row_skip,
                         &format!("❌ Error: {}", error),
                     )
@@ -308,9 +320,9 @@ async fn main() -> Result<()> {
                 } else {
                     write_row(
                         &sheets,
-                        &spreadsheet_id,
-                        &write_sheet_name,
-                        &update_data_col,
+                        &config.spreadsheet_id,
+                        &config.write_sheet_name,
+                        &config.update_data_col,
                         row_idx + row_skip,
                         vec![
                             serde_json::to_string(&update_data)?,

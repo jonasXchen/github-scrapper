@@ -6,10 +6,7 @@ use std::env;
 use yup_oauth2::{read_service_account_key, ServiceAccountAuthenticator};
 
 pub async fn init_sheets() -> Result<Sheets> {
-    let creds = read_service_account_key(
-        env::var("SERVICE_ACCOUNT_PATH").unwrap_or_else(|_| "service-account.json".to_string()),
-    )
-    .await?;
+    let creds = read_service_account_key("./service-account.json").await?;
 
     let auth = ServiceAccountAuthenticator::builder(creds).build().await?;
     let https = HttpsConnectorBuilder::new()
