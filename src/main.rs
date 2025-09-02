@@ -22,7 +22,7 @@ use types::{Config, GitHubUpdateData};
 #[tokio::main]
 
 async fn main() -> Result<()> {
-    dotenv().expect("Failed to load .env file");
+    dotenv().ok();
 
     let github_token = env::var("PRIVATE_GITHUB_TOKEN")?;
 

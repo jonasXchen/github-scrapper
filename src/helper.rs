@@ -3,7 +3,6 @@ use crate::types;
 use chrono::Utc;
 use reqwest::Response;
 use serde_json::json;
-use std::collections::HashMap;
 use tokio::time::{sleep, Duration};
 use types::GitHubUpdateData;
 use types::RepoMap;
