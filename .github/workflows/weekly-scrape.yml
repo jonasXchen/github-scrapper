@@ -11,13 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
-    env:
-      ES_APIKEY: ${{ secrets.ES_APIKEY }}
-      ES_ENDPOINT: ${{ secrets.ES_ENDPOINT }}
-      ES_INDEX: ${{ secrets.ES_INDEX }}
-      PRIVATE_GITHUB_TOKEN: ${{ secrets.PRIVATE_GITHUB_TOKEN }}
-      # add as many as you need
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -34,6 +27,13 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
           restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Write .env from secrets
+        run: |
+          echo "ES_APIKEY=${{ secrets.ES_APIKEY }}" >> .env
+          echo "ES_ENDPOINT=${{ secrets.ES_ENDPOINT }}" >> .env
+          echo "ES_INDEX=${{ secrets.ES_INDEX }}" >> .env
+          echo "PRIVATE_GITHUB_TOKEN=${{ secrets.PRIVATE_GITHUB_TOKEN }}" >> .env
 
       - name: Build scraper
         run: cargo build --release
