@@ -34,10 +34,7 @@ jobs:
           echo "ES_ENDPOINT=${{ secrets.ES_ENDPOINT }}" >> .env
           echo "ES_INDEX=${{ secrets.ES_INDEX }}" >> .env
           echo "PRIVATE_GITHUB_TOKEN=${{ secrets.PRIVATE_GITHUB_TOKEN }}" >> .env
-
-      - name: Write service account file
-        run: |
-          echo "${{ secrets.GOOGLE_SERVICE_ACCOUNT }}" > service-account.json
+          echo "GOOGLE_SERVICE_ACCOUNT_B64=${{ secrets.GOOGLE_SERVICE_ACCOUNT_B64 }}" >> .env
 
       - name: Build scraper
         run: cargo build --release

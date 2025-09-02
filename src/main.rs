@@ -50,6 +50,7 @@ async fn main() -> Result<()> {
     ];
 
     let sheets = init_sheets().await?;
+    print!("Initialized Google Sheets API client.\n");
 
     // let repos = read_from_sheet(&sheets, &config.spreadsheet_id, &config.read_sheet_name, &config.read_range).await?;
     let columns = read_columns_from_sheet(
