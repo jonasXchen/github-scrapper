@@ -9,7 +9,14 @@ on:
 jobs:
   run-scraper:
     runs-on: ubuntu-latest
-    timeout-minutes: 60 # script may take ~30 min
+    timeout-minutes: 60
+
+    env:
+      ES_APIKEY: ${{ secrets.ES_APIKEY }}
+      ES_ENDPOINT: ${{ secrets.ES_ENDPOINT }}
+      ES_INDEX: ${{ secrets.ES_INDEX }}
+      PRIVATE_GITHUB_TOKEN: ${{ secrets.PRIVATE_GITHUB_TOKEN }}
+      # add as many as you need
 
     steps:
       - name: Checkout code
@@ -30,15 +37,6 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
           restore-keys: ${{ runner.os }}-cargo-
-
-      - name: Load .env file
-        run: |
-          if [ -f .env ]; then
-            echo "Loading .env …"
-            export $(grep -v '^#' .env | xargs)
-          else
-            echo "⚠️ .env file not found!"
-          fi
 
       - name: Build scraper
         run: cargo build --release
