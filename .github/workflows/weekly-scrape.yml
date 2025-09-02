@@ -34,6 +34,7 @@ jobs:
           echo "ES_ENDPOINT=${{ secrets.ES_ENDPOINT }}" >> .env
           echo "ES_INDEX=${{ secrets.ES_INDEX }}" >> .env
           echo "PRIVATE_GITHUB_TOKEN=${{ secrets.PRIVATE_GITHUB_TOKEN }}" >> .env
+          echo "GOOGLE_SERVICE_ACCOUNT=${{ secrets.GOOGLE_SERVICE_ACCOUNT }}" >> .env
 
       - name: Build scraper
         run: cargo build --release
