@@ -11,7 +11,7 @@ pub async fn init_sheets() -> Result<Sheets> {
         std::env::var("GOOGLE_SERVICE_ACCOUNT").expect("Missing GOOGLE_SERVICE_ACCOUNT env var");
 
     let creds: ServiceAccountKey =
-        serde_json::from_str(&creds_json).expect("Failed to parse SERVICE_ACCOUNT_JSON");
+        serde_json::from_str(&creds_json).expect("Failed to parse GOOGLE_SERVICE_ACCOUNT");
 
     let auth = ServiceAccountAuthenticator::builder(creds).build().await?;
     let https = HttpsConnectorBuilder::new()
