@@ -2,8 +2,8 @@ name: Weekly GitHub Scraper Run
 
 on:
   schedule:
-    # adjust cron as needed; this example runs every Monday at 02:00 UTC
-    - cron: "0 2 * * 1"
+    # adjust cron as needed; this example runs every Monday at 00:00 UTC
+    - cron: "0 0 * * 1"
   workflow_dispatch: # manual trigger possible too
 
 jobs:
