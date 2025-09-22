@@ -10,14 +10,15 @@ pub struct KeywordResult {
 pub type RepoMap = HashMap<String, KeywordResult>;
 
 pub struct Config {
-    pub read_sheet_name: String,
-    pub write_sheet_name: String,
-    pub read_range: String,
-    pub user_col: String,
-    pub update_data_col: String,
-    pub search_update_data_col: String,
-    pub search_write_sheet_name: String,
-    pub spreadsheet_id: String,
+    pub read_sheet_name: String,         // Sheet to read from
+    pub write_sheet_name: String,        // Sheet to write to
+    pub read_range: String,              // Columns to read
+    pub user_write_sheet: String,        // Sheet to write user info to
+    pub user_write_col: String,          // Starting column to read user info to
+    pub update_data_col: String,         // Starting column to write update data
+    pub search_write_sheet_name: String, // Sheet to update results form Global GitHub scrapping results
+    pub search_update_data_col: String, // Starting column to update results form Global GitHub scrapping results
+    pub spreadsheet_id: String,         // Google Sheets ID
 }
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]

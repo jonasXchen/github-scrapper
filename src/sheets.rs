@@ -134,7 +134,7 @@ pub async fn write_row(
     sheet_name: &str,
     start_column: &str, // e.g., "A"
     row: usize,
-    values: Vec<String>, // e.g., vec!["foo", "bar", "baz"]
+    values: Vec<String>,
 ) -> Result<()> {
     // Convert column letter (e.g., "A") to number
     let start_col_num = column_letter_to_number(start_column);

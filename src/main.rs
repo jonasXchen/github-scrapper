@@ -8,14 +8,11 @@ use anyhow::Result;
 use dotenvy::dotenv;
 use elk::{es_document_exists, ingest_via_logstash};
 use github::{
-    classify_github_url, fetch_user_repos, get_github_repo, handle_github_repo_url,
-    parse_github_url, search_code, GitHubUrlType,
+    classify_github_url, fetch_user_repos, handle_github_repo_url, search_github_repos,
+    GitHubUrlType,
 };
 use reqwest::Client;
-use sheets::{
-    clean_column_names, init_sheets, read_columns_from_sheet, read_from_sheet, write_row,
-    write_to_cell,
-};
+use sheets::{clean_column_names, init_sheets, read_columns_from_sheet, write_row, write_to_cell};
 use std::{collections::HashSet, env, fs::File, io::Write, vec};
 use types::{Config, GitHubUpdateData};
 
@@ -28,11 +25,12 @@ async fn main() -> Result<()> {
 
     let config = Config {
         spreadsheet_id: "1aYacUptAwX2bqbvy9uZFdzcVjdTB7RXmjqLo851NTxs".to_string(),
-        read_sheet_name: "Headhunting".to_string(),
-        write_sheet_name: "Headhunting".to_string(),
-        read_range: "A:C".to_string(),
-        user_col: "A".to_string(),
-        update_data_col: "D".to_string(),
+        read_sheet_name: "Magic Incubator".to_string(),
+        write_sheet_name: "Magic Incubator".to_string(),
+        read_range: "A:Y".to_string(),
+        user_write_sheet: "User".to_string(),
+        user_write_col: "AA".to_string(),
+        update_data_col: "AA".to_string(),
         search_update_data_col: "A".to_string(),
         search_write_sheet_name: "Search".to_string(),
     };
@@ -52,7 +50,6 @@ async fn main() -> Result<()> {
     let sheets = init_sheets().await?;
     print!("Initialized Google Sheets API client.\n");
 
-    // let repos = read_from_sheet(&sheets, &config.spreadsheet_id, &config.read_sheet_name, &config.read_range).await?;
     let columns = read_columns_from_sheet(
         &sheets,
         &config.spreadsheet_id,
@@ -79,7 +76,7 @@ async fn main() -> Result<()> {
             (vec!["website"], "website_link"),
             (vec!["technical", "demo"], "technical_link"),
             (vec!["files_processed"], "files_processed"),
-            (vec!["location", "country"], "location"),
+            (vec!["location", "country", "residence"], "location"),
             (vec!["track"], "tracks"),
             (vec!["contact", "team", "twitter"], "contact"),
             (vec!["wallet", "solana"], "wallet"),
@@ -94,47 +91,14 @@ async fn main() -> Result<()> {
     let client = Client::new();
     let mut final_results: Vec<GitHubUpdateData> = Vec::new();
 
-    // Get unique repos based on queries
+    // Search GitHub for repos matching the keywords
     let queries = [
         "\"ephemeral-rollups-sdk\" in:file filename:package.json",
         "\"ephemeral-rollups-sdk\" in:file filename:Cargo.toml",
     ];
-    let mut seen_repos: HashSet<String> = HashSet::new();
-    for query in queries {
-        match search_code(query, &github_token).await {
-            Ok(items) => {
-                for item in items {
-                    if let Some(repo_url) = get_github_repo(&item.html_url) {
-                        if seen_repos.contains(&repo_url) {
-                            continue;
-                        }
-                        seen_repos.insert(repo_url.clone());
-                    }
-                }
-            }
-            Err(e) => {
-                eprintln!("Error fetching results for '{}': {}", query, e);
-            }
-        }
-    }
-
-    // Filter repos
-    let exclude_keywords = vec!["magicblock-labs"];
-    let filtered_repo_urls: Vec<String> = seen_repos
-        .into_iter()
-        .filter(|repo_url| {
-            let url_lower = repo_url.to_lowercase();
-            !exclude_keywords
-                .iter()
-                .any(|kw| url_lower.contains(&kw.to_lowercase()))
-        })
-        .collect();
-    println!(
-        "Found {} unique repos from queries",
-        filtered_repo_urls.len()
-    );
-
-    // Add repo to sheets
+    let mut filtered_repo_urls: Vec<String> = search_github_repos(queries, &github_token).await?;
+    let filtered_repo_urls = ["".to_string()].to_vec();
+    // Add repos to sheets
     let mut search_row_idx = 2;
     for repo_url in &filtered_repo_urls {
         println!("Processing {} ...", repo_url);
@@ -151,6 +115,13 @@ async fn main() -> Result<()> {
         .await?;
 
         // Ingest data into elasticsearch
+        if update_data.commit_sha.is_empty() {
+            println!(
+                "❌ No commit SHA found for {}, skipping ingestion.",
+                repo_url
+            );
+            continue;
+        }
         let es_index = env::var("ES_INDEX")?;
         let doc_id = &update_data.commit_sha;
         let document_exist = es_document_exists(&es_index, doc_id).await?;
@@ -194,8 +165,9 @@ async fn main() -> Result<()> {
         search_row_idx += 1;
     }
 
+    // Going through Sheets
     let mut row_idx = 2;
-    let row_skip = 2;
+    let row_skip = 0;
     let mut row_reading = row_idx + row_skip;
     for (idx, repo_url) in repos.iter().enumerate().skip(row_skip) {
         println!(
@@ -220,6 +192,11 @@ async fn main() -> Result<()> {
                     )
                     .await?;
 
+                    // Skip if there are no keyword matches (only record users with keyword matches) or data is empty
+                    if (update_data.keyword_matches != "0" || update_data.is_empty()) {
+                        continue;
+                    }
+
                     // Only ingest if it's not empty/default
                     if !update_data.is_empty() {
                         update_data.add_fields_if_exist(&cleaned_columns, &fields, row_idx);
@@ -239,11 +216,12 @@ async fn main() -> Result<()> {
                         &sheets,
                         &config.spreadsheet_id,
                         &config.write_sheet_name,
-                        &config.user_col,
+                        &config.user_write_col,
                         row_idx,
                         vec![owner.clone(), config.read_sheet_name.clone()],
                     )
                     .await?;
+
                     if let Some(error) = error_message {
                         println!("❌ Error processing {}: {}", repo_url, error);
                         // Write error to config.update_data_col
@@ -272,8 +250,8 @@ async fn main() -> Result<()> {
                         .await?;
                         println!("✅ Row {} updated", row_idx);
                     }
-                    row_idx += 1;
                 }
+                row_idx += 1;
             }
 
             GitHubUrlType::Repo { owner, repo_name } => {

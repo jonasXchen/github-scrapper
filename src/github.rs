@@ -11,9 +11,8 @@ use reqwest::{
 };
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use types::KeywordResult;
-
 use url::Url;
 
 #[derive(Debug, Deserialize)]
@@ -361,4 +360,42 @@ pub async fn search_code(
         .await?;
 
     Ok(res.items)
+}
+
+pub async fn search_github_repos(queries: [&str; 2], github_token: &str) -> Result<Vec<String>> {
+    let mut seen_repos: HashSet<String> = HashSet::new();
+    for query in queries {
+        match search_code(query, &github_token).await {
+            Ok(items) => {
+                for item in items {
+                    if let Some(repo_url) = get_github_repo(&item.html_url) {
+                        if seen_repos.contains(&repo_url) {
+                            continue;
+                        }
+                        seen_repos.insert(repo_url.clone());
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Error fetching results for '{}': {}", query, e);
+            }
+        }
+    }
+
+    // Filter repos
+    let exclude_keywords = vec!["magicblock-labs"];
+    let filtered_repo_urls: Vec<String> = seen_repos
+        .into_iter()
+        .filter(|repo_url| {
+            let url_lower = repo_url.to_lowercase();
+            !exclude_keywords
+                .iter()
+                .any(|kw| url_lower.contains(&kw.to_lowercase()))
+        })
+        .collect();
+    println!(
+        "Found {} unique repos from queries",
+        filtered_repo_urls.len()
+    );
+    return Ok(filtered_repo_urls);
 }
