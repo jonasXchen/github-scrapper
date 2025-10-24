@@ -25,12 +25,18 @@ async fn main() -> Result<()> {
 
     let config = Config {
         spreadsheet_id: "1aYacUptAwX2bqbvy9uZFdzcVjdTB7RXmjqLo851NTxs".to_string(),
+        // read_sheet_name: "Headhunting".to_string(),
+        // write_sheet_name: "Headhunting".to_string(),
+        // read_range: "A:C".to_string(),
+        // update_data_col: "D".to_string(),
+        // user_write_col: "D".to_string(),
+        // user_write_sheet: "User".to_string(),
         read_sheet_name: "Magic Incubator".to_string(),
         write_sheet_name: "Magic Incubator".to_string(),
         read_range: "A:Y".to_string(),
+        update_data_col: "AA".to_string(),
         user_write_sheet: "User".to_string(),
         user_write_col: "AA".to_string(),
-        update_data_col: "AA".to_string(),
         search_update_data_col: "A".to_string(),
         search_write_sheet_name: "Search".to_string(),
     };
@@ -96,8 +102,8 @@ async fn main() -> Result<()> {
         "\"ephemeral-rollups-sdk\" in:file filename:package.json",
         "\"ephemeral-rollups-sdk\" in:file filename:Cargo.toml",
     ];
-    let filtered_repo_urls: Vec<String> = search_github_repos(queries, &github_token).await?;
-    // let filtered_repo_urls = ["".to_string()].to_vec();
+    // let filtered_repo_urls: Vec<String> = search_github_repos(queries, &github_token).await?;
+    let filtered_repo_urls = ["".to_string()].to_vec();
     // Add repos to sheets
     let mut search_row_idx = 2;
     for repo_url in &filtered_repo_urls {
@@ -167,7 +173,7 @@ async fn main() -> Result<()> {
 
     // Going through Sheets
     let mut row_idx = 2;
-    let row_skip = 0;
+    let row_skip = 74;
     let mut row_reading = row_idx + row_skip;
     for (idx, repo_url) in repos.iter().enumerate().skip(row_skip) {
         println!(
@@ -175,6 +181,7 @@ async fn main() -> Result<()> {
             row_reading, config.read_sheet_name, repo_url
         );
         match classify_github_url(&repo_url) {
+            // If GitHub User
             GitHubUrlType::User(owner) => {
                 // Could be a user or an organization
                 println!("👤 Detected GitHub user/org: {}", owner);
@@ -199,7 +206,7 @@ async fn main() -> Result<()> {
 
                     // Only ingest if it's not empty/default
                     if !update_data.is_empty() {
-                        update_data.add_fields_if_exist(&cleaned_columns, &fields, row_idx);
+                        update_data.add_fields_if_exist(&cleaned_columns, &fields, row_reading);
                         let response = ingest_via_logstash(
                             "https://es.metacamp.sg/logstash/",
                             "ELK",
@@ -217,7 +224,7 @@ async fn main() -> Result<()> {
                         &config.spreadsheet_id,
                         &config.write_sheet_name,
                         &config.user_write_col,
-                        row_idx,
+                        row_reading,
                         vec![owner.clone(), config.read_sheet_name.clone()],
                     )
                     .await?;
@@ -230,7 +237,7 @@ async fn main() -> Result<()> {
                             &config.spreadsheet_id,
                             &config.write_sheet_name,
                             &config.update_data_col,
-                            row_idx,
+                            row_reading,
                             &format!("❌ Error: {}", error),
                         )
                         .await?;
@@ -240,7 +247,7 @@ async fn main() -> Result<()> {
                             &config.spreadsheet_id,
                             &config.write_sheet_name,
                             &config.update_data_col,
-                            row_idx,
+                            row_reading,
                             vec![
                                 serde_json::to_string(&update_data)?,
                                 update_data.keyword_matches.to_string(),
@@ -248,12 +255,13 @@ async fn main() -> Result<()> {
                             ],
                         )
                         .await?;
-                        println!("✅ Row {} updated", row_idx);
+                        println!("✅ Row {} updated", row_reading);
                     }
                 }
-                row_idx += 1;
+                row_reading += 1;
             }
 
+            // If GitHub Repo
             GitHubUrlType::Repo { owner, repo_name } => {
                 println!("📦 Detected GitHub repo: {}/{}", owner, repo_name);
                 let repo_url = format!("https://github.com/{}/{}", owner, repo_name);
@@ -270,7 +278,7 @@ async fn main() -> Result<()> {
 
                 // Only ingest if it's not empty/default
                 if !update_data.is_empty() {
-                    update_data.add_fields_if_exist(&cleaned_columns, &fields, row_idx);
+                    update_data.add_fields_if_exist(&cleaned_columns, &fields, row_reading);
                     let response = ingest_via_logstash(
                         "https://es.metacamp.sg/logstash/",
                         "ELK",
@@ -292,7 +300,7 @@ async fn main() -> Result<()> {
                         &config.spreadsheet_id,
                         &config.write_sheet_name,
                         &config.update_data_col,
-                        row_idx + row_skip,
+                        row_reading,
                         &format!("❌ Error: {}", error),
                     )
                     .await?;
@@ -302,7 +310,7 @@ async fn main() -> Result<()> {
                         &config.spreadsheet_id,
                         &config.write_sheet_name,
                         &config.update_data_col,
-                        row_idx + row_skip,
+                        row_reading,
                         vec![
                             serde_json::to_string(&update_data)?,
                             update_data.keyword_matches.to_string(),
@@ -313,15 +321,14 @@ async fn main() -> Result<()> {
 
                     println!("✅ Row {} updated", idx + 2);
                 }
-                row_idx += 1;
+                row_reading += 1;
             }
 
             GitHubUrlType::Invalid => {
                 println!("❗ Invalid GitHub URL: {}", repo_url);
-                row_idx += 1;
+                row_reading += 1;
             }
         }
-        row_reading += 1;
     }
 
     // Save all results

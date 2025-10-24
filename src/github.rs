@@ -239,7 +239,7 @@ pub async fn fetch_user_repos(
 
     loop {
         let url = format!(
-            "https://api.github.com/users/{}/repos?per_page=100&page={}",
+            "https://api.github.com/users/{}/repos?per_page=10&page={}&sort=updated&direction=desc",
             username, page
         );
 
