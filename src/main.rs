@@ -102,8 +102,8 @@ async fn main() -> Result<()> {
         "\"ephemeral-rollups-sdk\" in:file filename:package.json",
         "\"ephemeral-rollups-sdk\" in:file filename:Cargo.toml",
     ];
-    // let filtered_repo_urls: Vec<String> = search_github_repos(queries, &github_token).await?;
-    let filtered_repo_urls = ["".to_string()].to_vec();
+    let filtered_repo_urls: Vec<String> = search_github_repos(queries, &github_token).await?;
+    // let filtered_repo_urls = ["".to_string()].to_vec();
     // Add repos to sheets
     let mut search_row_idx = 2;
     for repo_url in &filtered_repo_urls {
@@ -173,7 +173,7 @@ async fn main() -> Result<()> {
 
     // Going through Sheets
     let mut row_idx = 2;
-    let row_skip = 0;
+    let row_skip = 134;
     let mut row_reading = row_idx + row_skip;
     for (idx, repo_url) in repos.iter().enumerate().skip(row_skip) {
         println!(
@@ -185,7 +185,7 @@ async fn main() -> Result<()> {
             GitHubUrlType::User(owner) => {
                 // Could be a user or an organization
                 println!("👤 Detected GitHub user/org: {}", owner);
-                let (repos, total) = fetch_user_repos(&client, &owner, &github_token).await;
+                let (repos, total) = fetch_user_repos(&client, &owner, &github_token, 10).await;
                 println!("🔍 Found {} repos for {}", total, owner);
                 for repo_url in repos {
                     let (mut update_data, error_message) = handle_github_repo_url(

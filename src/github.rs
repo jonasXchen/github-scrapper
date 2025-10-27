@@ -97,7 +97,7 @@ pub async fn process_repo(
     github_token: &str,
     keywords: &[&str; 8],
     allowed_extensions: &[&str; 4],
-    limit: usize,
+    files_limit: usize,
 ) -> Option<(HashMap<String, KeywordResult>, String, usize)> {
     let tree_url = format!(
         "https://api.github.com/repos/{}/{}/git/trees/HEAD?recursive=1",
@@ -123,7 +123,7 @@ pub async fn process_repo(
         .tree
         .into_iter()
         .filter(|i| i.item_type == "blob" && allowed_extensions.iter().any(|e| i.path.ends_with(e)))
-        .take(limit)
+        .take(files_limit)
         .collect(); // Debug limit
 
     let files_processed = files.len();
@@ -233,14 +233,15 @@ pub async fn fetch_user_repos(
     client: &Client,
     username: &str,
     github_token: &str,
+    repos_limit: usize,
 ) -> (Vec<String>, usize) {
     let mut repo_urls = Vec::new();
     let mut page = 1;
 
     loop {
         let url = format!(
-            "https://api.github.com/users/{}/repos?per_page=10&page={}&sort=updated&direction=desc",
-            username, page
+            "https://api.github.com/users/{}/repos?per_page={}&page={}&sort=updated&direction=desc",
+            username, repos_limit, page
         );
 
         let resp = match client
@@ -274,6 +275,7 @@ pub async fn fetch_user_repos(
         }
 
         page += 1;
+        break; // break after 1st page
     }
 
     let total = repo_urls.len();
