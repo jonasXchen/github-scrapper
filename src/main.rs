@@ -25,18 +25,19 @@ async fn main() -> Result<()> {
 
     let config = Config {
         spreadsheet_id: "1aYacUptAwX2bqbvy9uZFdzcVjdTB7RXmjqLo851NTxs".to_string(),
-        // read_sheet_name: "Headhunting".to_string(),
-        // write_sheet_name: "Headhunting".to_string(),
-        // read_range: "A:C".to_string(),
-        // update_data_col: "D".to_string(),
-        // user_write_col: "D".to_string(),
-        // user_write_sheet: "User".to_string(),
-        read_sheet_name: "Magic Incubator".to_string(),
-        write_sheet_name: "Magic Incubator".to_string(),
-        read_range: "A:Y".to_string(),
+        read_sheet_name: "Cypherpunk Side Track".to_string(),
+        write_sheet_name: "Cypherpunk Side Track".to_string(),
+        read_range: "C:Z".to_string(),
         update_data_col: "AA".to_string(),
         user_write_sheet: "User".to_string(),
         user_write_col: "AA".to_string(),
+
+        // read_sheet_name: "Magic Incubator".to_string(),
+        // write_sheet_name: "Magic Incubator".to_string(),
+        // read_range: "A:Y".to_string(),
+        // update_data_col: "AA".to_string(),
+        // user_write_sheet: "User".to_string(),
+        // user_write_col: "AA".to_string(),
         search_update_data_col: "A".to_string(),
         search_write_sheet_name: "Search".to_string(),
     };
@@ -173,7 +174,7 @@ async fn main() -> Result<()> {
 
     // Going through Sheets
     let mut row_idx = 2;
-    let row_skip = 134;
+    let row_skip = 0;
     let mut row_reading = row_idx + row_skip;
     for (idx, repo_url) in repos.iter().enumerate().skip(row_skip) {
         println!(
