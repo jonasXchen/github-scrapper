@@ -25,19 +25,18 @@ async fn main() -> Result<()> {
 
     let config = Config {
         spreadsheet_id: "1aYacUptAwX2bqbvy9uZFdzcVjdTB7RXmjqLo851NTxs".to_string(),
-        read_sheet_name: "Cypherpunk Side Track".to_string(),
-        write_sheet_name: "Cypherpunk Side Track".to_string(),
-        read_range: "C:Z".to_string(),
-        update_data_col: "AA".to_string(),
-        user_write_sheet: "User".to_string(),
-        user_write_col: "AA".to_string(),
-
-        // read_sheet_name: "Magic Incubator".to_string(),
-        // write_sheet_name: "Magic Incubator".to_string(),
-        // read_range: "A:Y".to_string(),
+        // read_sheet_name: "Cypherpunk Side Track".to_string(),
+        // write_sheet_name: "Cypherpunk Side Track".to_string(),
+        // read_range: "C:Z".to_string(),
         // update_data_col: "AA".to_string(),
         // user_write_sheet: "User".to_string(),
         // user_write_col: "AA".to_string(),
+        read_sheet_name: "Magic Incubator".to_string(),
+        write_sheet_name: "Magic Incubator".to_string(),
+        read_range: "A:Y".to_string(),
+        update_data_col: "AA".to_string(),
+        user_write_sheet: "User".to_string(),
+        user_write_col: "AA".to_string(),
         search_update_data_col: "A".to_string(),
         search_write_sheet_name: "Search".to_string(),
     };
@@ -98,6 +97,11 @@ async fn main() -> Result<()> {
     let client = Client::new();
     let mut final_results: Vec<GitHubUpdateData> = Vec::new();
 
+    let queries = [
+        "\"ephemeral-rollups-sdk\" in:file filename:package.json",
+        "\"ephemeral-rollups-kit\" in:file filename:package.json",
+        "\"ephemeral-rollups-sdk\" in:file filename:Cargo.toml",
+    ];
     let filtered_repo_urls: Vec<String> = search_github_repos(queries, &github_token).await?;
     // let filtered_repo_urls = ["".to_string()].to_vec();
     // Add repos to sheets
