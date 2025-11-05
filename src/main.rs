@@ -98,13 +98,8 @@ async fn main() -> Result<()> {
     let client = Client::new();
     let mut final_results: Vec<GitHubUpdateData> = Vec::new();
 
-    // Search GitHub for repos matching the keywords
-    let queries = [
-        "\"ephemeral-rollups-sdk\" in:file filename:package.json",
-        "\"ephemeral-rollups-sdk\" in:file filename:Cargo.toml",
-    ];
-    let filtered_repo_urls: Vec<String> = search_github_repos(queries, &github_token).await?;
-    // let filtered_repo_urls = ["".to_string()].to_vec();
+    // let filtered_repo_urls: Vec<String> = search_github_repos(queries, &github_token).await?;
+    let filtered_repo_urls = ["".to_string()].to_vec();
     // Add repos to sheets
     let mut search_row_idx = 2;
     for repo_url in &filtered_repo_urls {
