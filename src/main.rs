@@ -182,7 +182,7 @@ async fn main() -> Result<()> {
 
     // Going through Sheets
     let mut row_idx = 2;
-    let row_skip = 290;
+    let row_skip = 470;
     let mut row_reading = row_idx + row_skip;
     for (idx, repo_url) in repos.iter().enumerate().skip(row_skip) {
         println!(
