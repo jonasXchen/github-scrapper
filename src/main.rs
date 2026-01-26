@@ -50,8 +50,9 @@ async fn main() -> Result<()> {
     };
 
     const ALLOWED_EXTENSIONS: [&str; 4] = [".toml", ".json", ".rs", ".ts"];
-    const KEYWORDS: [&str; 8] = [
+    const KEYWORDS: [&str; 9] = [
         "ephemeral-rollups-sdk",
+        "ephemeral-rollups-kit",
         "#[ephemeral]",
         "#[commit]",
         "#[delegate]",
@@ -109,6 +110,7 @@ async fn main() -> Result<()> {
         "\"ephemeral-rollups-sdk\" in:file filename:package.json",
         "\"ephemeral-rollups-kit\" in:file filename:package.json",
         "\"ephemeral-rollups-sdk\" in:file filename:Cargo.toml",
+        "\"ephemeral-rollups-pinocchio\" in:file filename:Cargo.toml",
     ];
     let filtered_repo_urls: Vec<String> = search_github_repos(queries, &github_token).await?;
     // let filtered_repo_urls = ["".to_string()].to_vec();
@@ -124,7 +126,7 @@ async fn main() -> Result<()> {
             &KEYWORDS,
             &ALLOWED_EXTENSIONS,
             100,
-            &config.read_sheet_name,
+            "Public Search",
         )
         .await?;
 

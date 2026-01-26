@@ -95,7 +95,7 @@ pub async fn process_repo(
     owner: &str,
     repo: &str,
     github_token: &str,
-    keywords: &[&str; 8],
+    keywords: &[&str; 9],
     allowed_extensions: &[&str; 4],
     files_limit: usize,
 ) -> Option<(HashMap<String, KeywordResult>, String, usize)> {
@@ -286,7 +286,7 @@ pub async fn handle_github_repo_url(
     client: &Client,
     repo_url: &str,
     github_token: &str,
-    keywords: &[&str; 8],
+    keywords: &[&str; 9],
     allowed_extensions: &[&str; 4],
     limit: usize,
     origin: &str,
@@ -364,7 +364,7 @@ pub async fn search_code(
     Ok(res.items)
 }
 
-pub async fn search_github_repos(queries: [&str; 3], github_token: &str) -> Result<Vec<String>> {
+pub async fn search_github_repos(queries: [&str; 4], github_token: &str) -> Result<Vec<String>> {
     let mut seen_repos: HashSet<String> = HashSet::new();
     for query in queries {
         match search_code(query, &github_token).await {
