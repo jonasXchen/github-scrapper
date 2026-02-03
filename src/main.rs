@@ -39,12 +39,20 @@ async fn main() -> Result<()> {
         // update_data_col: "AA".to_string(),
         // user_write_sheet: "User".to_string(),
         // user_write_col: "AA".to_string(),
-        read_sheet_name: "Magic Incubator".to_string(),
-        write_sheet_name: "Magic Incubator".to_string(),
-        read_range: "A:Y".to_string(),
-        update_data_col: "AA".to_string(),
+
+        // read_sheet_name: "Magic Incubator".to_string(),
+        // write_sheet_name: "Magic Incubator".to_string(),
+        // read_range: "A:Y".to_string(),
+        // update_data_col: "AA".to_string(),
+        // user_write_sheet: "User".to_string(),
+        // user_write_col: "AA".to_string(),
+        read_sheet_name: "Privacy Hack".to_string(),
+        write_sheet_name: "Privacy Hack".to_string(),
+        read_range: "A:K".to_string(),
+        update_data_col: "L".to_string(),
         user_write_sheet: "User".to_string(),
-        user_write_col: "AA".to_string(),
+        user_write_col: "A".to_string(),
+
         search_update_data_col: "A".to_string(),
         search_write_sheet_name: "Search".to_string(),
     };
@@ -73,6 +81,7 @@ async fn main() -> Result<()> {
     )
     .await?;
 
+    // ES fields
     let fields = vec![
         "snapshot_url",
         "presentation_link",
@@ -83,6 +92,7 @@ async fn main() -> Result<()> {
         "contact",
     ];
 
+    // Extract sheet columns and normalize
     let cleaned_columns = clean_column_names(
         columns,
         &[
@@ -93,7 +103,7 @@ async fn main() -> Result<()> {
             (vec!["files_processed"], "files_processed"),
             (vec!["location", "country", "residence"], "location"),
             (vec!["track"], "tracks"),
-            (vec!["contact", "team", "twitter"], "contact"),
+            (vec!["contact", "telegram", "team", "twitter"], "contact"),
             (vec!["wallet", "solana"], "wallet"),
             (vec!["twitter", "social link"], "social_link"),
         ],
@@ -112,78 +122,81 @@ async fn main() -> Result<()> {
         "\"ephemeral-rollups-sdk\" in:file filename:Cargo.toml",
         "\"ephemeral-rollups-pinocchio\" in:file filename:Cargo.toml",
     ];
-    let filtered_repo_urls: Vec<String> = search_github_repos(queries, &github_token).await?;
-    // let filtered_repo_urls = ["".to_string()].to_vec();
+    // let filtered_repo_urls: Vec<String> = search_github_repos(queries, &github_token).await?;
+    let filtered_repo_urls = Vec::<String>::new();
     // Add repos to sheets
     let mut search_row_idx = 2;
-    for repo_url in &filtered_repo_urls {
-        println!("Processing {} ...", repo_url);
+    if (filtered_repo_urls.len() > 0) {
+        println!("Processing Public Search ...");
+        for repo_url in &filtered_repo_urls {
+            println!("Processing {} ...", repo_url);
 
-        let (mut update_data, error_message) = handle_github_repo_url(
-            &client,
-            repo_url,
-            &github_token,
-            &KEYWORDS,
-            &ALLOWED_EXTENSIONS,
-            100,
-            "Public Search",
-        )
-        .await?;
+            let (mut update_data, error_message) = handle_github_repo_url(
+                &client,
+                repo_url,
+                &github_token,
+                &KEYWORDS,
+                &ALLOWED_EXTENSIONS,
+                100,
+                "Public Search",
+            )
+            .await?;
 
-        // Ingest data into elasticsearch
-        if update_data.commit_sha.is_empty() {
-            println!(
-                "❌ No commit SHA found for {}, skipping ingestion.",
-                repo_url
-            );
-            continue;
-        }
-        let es_index = env::var("ES_INDEX")?;
-        let doc_id = &update_data.commit_sha;
-        let document_exist = es_document_exists(&es_index, doc_id).await?;
-        if !document_exist {
-            // Only ingest if it's not empty/default
-            if !update_data.is_empty() {
-                update_data.add_fields_if_exist(&cleaned_columns, &fields, search_row_idx);
-                let response = ingest_via_logstash(
-                    "https://es.metacamp.sg/logstash/",
-                    "ELK",
-                    &serde_json::to_value(&update_data)?,
-                )
-                .await?;
-
-                println!("Ingest response: {}", response);
+            // Ingest data into elasticsearch
+            if update_data.commit_sha.is_empty() {
+                println!(
+                    "❌ No commit SHA found for {}, skipping ingestion.",
+                    repo_url
+                );
+                continue;
             }
-            final_results.push(update_data.clone());
+            let es_index = env::var("ES_INDEX")?;
+            let doc_id = &update_data.commit_sha;
+            let document_exist = es_document_exists(&es_index, doc_id).await?;
+            if !document_exist {
+                // Only ingest if it's not empty/default
+                if !update_data.is_empty() {
+                    update_data.add_fields_if_exist(&cleaned_columns, &fields, search_row_idx);
+                    let response = ingest_via_logstash(
+                        "https://es.metacamp.sg/logstash/",
+                        "ELK",
+                        &serde_json::to_value(&update_data)?,
+                    )
+                    .await?;
+
+                    println!("Ingest response: {}", response);
+                }
+                final_results.push(update_data.clone());
+            }
+
+            println!("Writing {} row", search_row_idx);
+            write_row(
+                &sheets,
+                &config.spreadsheet_id,
+                &config.search_write_sheet_name,
+                &config.search_update_data_col,
+                search_row_idx,
+                vec![
+                    repo_url.clone(),
+                    serde_json::to_string(&update_data)?,
+                    update_data.keyword_matches.to_string(),
+                    update_data.snapshot_url,
+                ],
+            )
+            .await?;
+
+            println!(
+                "✅ Row {} updated in {}",
+                search_row_idx, &config.search_write_sheet_name,
+            );
+
+            search_row_idx += 1;
         }
-
-        println!("Writing {} row", search_row_idx);
-        write_row(
-            &sheets,
-            &config.spreadsheet_id,
-            &config.search_write_sheet_name,
-            &config.search_update_data_col,
-            search_row_idx,
-            vec![
-                repo_url.clone(),
-                serde_json::to_string(&update_data)?,
-                update_data.keyword_matches.to_string(),
-                update_data.snapshot_url,
-            ],
-        )
-        .await?;
-
-        println!(
-            "✅ Row {} updated in {}",
-            search_row_idx, &config.search_write_sheet_name,
-        );
-
-        search_row_idx += 1;
     }
 
     // Going through Sheets
-    let mut row_idx = 2;
-    let row_skip = 160;
+    let row_idx = 2;
+    let row_skip = 0;
     let mut row_reading = row_idx + row_skip;
     for (idx, repo_url) in repos.iter().enumerate().skip(row_skip) {
         println!(
