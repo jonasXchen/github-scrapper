@@ -122,8 +122,8 @@ async fn main() -> Result<()> {
         "\"ephemeral-rollups-sdk\" in:file filename:Cargo.toml",
         "\"ephemeral-rollups-pinocchio\" in:file filename:Cargo.toml",
     ];
-    // let filtered_repo_urls: Vec<String> = search_github_repos(queries, &github_token).await?;
-    let filtered_repo_urls = Vec::<String>::new();
+    let filtered_repo_urls: Vec<String> = search_github_repos(queries, &github_token).await?;
+    // let filtered_repo_urls = Vec::<String>::new();
     // Add repos to sheets
     let mut search_row_idx = 2;
     if (filtered_repo_urls.len() > 0) {
