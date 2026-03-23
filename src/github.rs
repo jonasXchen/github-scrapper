@@ -122,7 +122,12 @@ pub async fn process_repo(
     let files: Vec<_> = tree
         .tree
         .into_iter()
-        .filter(|i| i.item_type == "blob" && allowed_extensions.iter().any(|e| i.path.ends_with(e)))
+        .filter(|i| {
+            i.item_type == "blob"
+                && allowed_extensions.iter().any(|e| i.path.ends_with(e))
+                && !i.path.contains("node_modules")
+                && !i.path.contains("target")
+        })
         .take(files_limit)
         .collect(); // Debug limit
 

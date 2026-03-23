@@ -137,7 +137,7 @@ async fn main() -> Result<()> {
                 &github_token,
                 &KEYWORDS,
                 &ALLOWED_EXTENSIONS,
-                100,
+                254,
                 "Public Search",
             )
             .await?;
@@ -217,13 +217,13 @@ async fn main() -> Result<()> {
                         &github_token,
                         &KEYWORDS,
                         &ALLOWED_EXTENSIONS,
-                        100,
+                        254,
                         &config.read_sheet_name,
                     )
                     .await?;
 
                     // Skip if there are no keyword matches (only record users with keyword matches) or data is empty
-                    if (update_data.keyword_matches != "0" || update_data.is_empty()) {
+                    if (update_data.keyword_matches == "0" || update_data.is_empty()) {
                         continue;
                     }
 
@@ -294,7 +294,7 @@ async fn main() -> Result<()> {
                     &github_token,
                     &KEYWORDS,
                     &ALLOWED_EXTENSIONS,
-                    100,
+                    254,
                     &config.read_sheet_name,
                 )
                 .await?;
