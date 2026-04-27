@@ -46,10 +46,10 @@ async fn main() -> Result<()> {
         // update_data_col: "AA".to_string(),
         // user_write_sheet: "User".to_string(),
         // user_write_col: "AA".to_string(),
-        read_sheet_name: "Blitz v2".to_string(),
-        write_sheet_name: "Blitz v2".to_string(),
-        read_range: "A:L".to_string(),
-        update_data_col: "R".to_string(),
+        read_sheet_name: "Blitz v4".to_string(),
+        write_sheet_name: "Blitz v4".to_string(),
+        read_range: "A:N".to_string(),
+        update_data_col: "T".to_string(),
         user_write_sheet: "User".to_string(),
         user_write_col: "A".to_string(),
 
@@ -58,7 +58,7 @@ async fn main() -> Result<()> {
     };
 
     const ALLOWED_EXTENSIONS: [&str; 4] = [".toml", ".json", ".rs", ".ts"];
-    const KEYWORDS: [&str; 9] = [
+    const KEYWORDS: [&str; 11] = [
         "ephemeral-rollups-sdk",
         "ephemeral-rollups-kit",
         "#[ephemeral]",
@@ -68,6 +68,8 @@ async fn main() -> Result<()> {
         "undelegate_account",
         "commit_accounts",
         "commit_and_undelegate_accounts",
+        "MagicIntentBundleBuilder",
+        "payments.magicblock.app",
     ];
 
     let sheets = init_sheets().await?;
@@ -122,8 +124,8 @@ async fn main() -> Result<()> {
         "\"ephemeral-rollups-sdk\" in:file filename:Cargo.toml",
         "\"ephemeral-rollups-pinocchio\" in:file filename:Cargo.toml",
     ];
-    let filtered_repo_urls: Vec<String> = search_github_repos(queries, &github_token).await?;
-    // let filtered_repo_urls = Vec::<String>::new();
+    // let filtered_repo_urls: Vec<String> = search_github_repos(queries, &github_token).await?;
+    let filtered_repo_urls = Vec::<String>::new();
     // Add repos to sheets
     let mut search_row_idx = 2;
     if (filtered_repo_urls.len() > 0) {
