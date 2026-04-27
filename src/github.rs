@@ -95,7 +95,7 @@ pub async fn process_repo(
     owner: &str,
     repo: &str,
     github_token: &str,
-    keywords: &[&str; 9],
+    keywords: &[&str; 10],
     allowed_extensions: &[&str; 4],
     files_limit: usize,
 ) -> Option<(HashMap<String, KeywordResult>, String, usize)> {
@@ -291,7 +291,7 @@ pub async fn handle_github_repo_url(
     client: &Client,
     repo_url: &str,
     github_token: &str,
-    keywords: &[&str; 9],
+    keywords: &[&str; 10],
     allowed_extensions: &[&str; 4],
     limit: usize,
     origin: &str,

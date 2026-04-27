@@ -58,7 +58,7 @@ async fn main() -> Result<()> {
     };
 
     const ALLOWED_EXTENSIONS: [&str; 4] = [".toml", ".json", ".rs", ".ts"];
-    const KEYWORDS: [&str; 11] = [
+    const KEYWORDS: [&str; 10] = [
         "ephemeral-rollups-sdk",
         "ephemeral-rollups-kit",
         "#[ephemeral]",
@@ -66,10 +66,9 @@ async fn main() -> Result<()> {
         "#[delegate]",
         "delegate_account",
         "undelegate_account",
-        "commit_accounts",
-        "commit_and_undelegate_accounts",
         "MagicIntentBundleBuilder",
         "payments.magicblock.app",
+        "await getAuthToken",
     ];
 
     let sheets = init_sheets().await?;
