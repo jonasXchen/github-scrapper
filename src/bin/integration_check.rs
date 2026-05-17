@@ -38,6 +38,7 @@ const TARGETS: &[&str] = &[
     "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
     "ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1",
     "Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz",
+    "SPLxh1LVZzEkX99H6rqYizhytLWPZVV296zyYDPagv2",
 ];
 
 // ─── Defaults (override via .env if desired) ─────────────────────────────────
