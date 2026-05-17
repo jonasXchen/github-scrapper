@@ -1,20 +1,18 @@
-mod elk;
-mod github;
-mod helper;
-mod sheets;
-mod types;
-
 use anyhow::Result;
 use dotenvy::dotenv;
-use elk::{es_document_exists, ingest_via_logstash};
-use github::{
+use integration_validation::elk::{es_document_exists, ingest_via_logstash};
+use integration_validation::github::{
     classify_github_url, fetch_user_repos, handle_github_repo_url, search_github_repos,
     GitHubUrlType,
 };
+use integration_validation::sheets::{
+    clean_column_names, column_letter_to_number, column_number_to_letter, init_sheets,
+    read_columns_from_sheet, resolve_or_append_columns, write_named_cells, write_row,
+    write_to_cell,
+};
+use integration_validation::types::{Config, GitHubUpdateData};
 use reqwest::Client;
-use sheets::{clean_column_names, init_sheets, read_columns_from_sheet, write_row, write_to_cell};
 use std::{collections::HashSet, env, fs::File, io::Write, vec};
-use types::{Config, GitHubUpdateData};
 
 #[tokio::main]
 
@@ -46,10 +44,10 @@ async fn main() -> Result<()> {
         // update_data_col: "AA".to_string(),
         // user_write_sheet: "User".to_string(),
         // user_write_col: "AA".to_string(),
-        read_sheet_name: "Blitz v4".to_string(),
-        write_sheet_name: "Blitz v4".to_string(),
-        read_range: "A:N".to_string(),
-        update_data_col: "T".to_string(),
+        read_sheet_name: "SNS Frontier Privacy Track".to_string(),
+        write_sheet_name: "SNS Frontier Privacy Track".to_string(),
+        read_range: "".to_string(),
+        update_data_col: "".to_string(),
         user_write_sheet: "User".to_string(),
         user_write_col: "A".to_string(),
 
@@ -73,6 +71,104 @@ async fn main() -> Result<()> {
 
     let sheets = init_sheets().await?;
     print!("Initialized Google Sheets API client.\n");
+
+    // Resolve write locations by header name. If the matching config field is
+    // empty, the resolver finds the existing anchor header or appends the
+    // block at the next empty column. If the config field is set explicitly,
+    // we honor that position and (re-)write the headers there.
+    let update_data_headers: Vec<String> = vec![
+        "Scraper Result (JSON)".to_string(),
+        "Scraper Keyword Matches".to_string(),
+        "Scraper Snapshot URL".to_string(),
+    ];
+    let user_headers: Vec<String> = vec!["Owner".to_string(), "Source Sheet".to_string()];
+    let search_headers: Vec<String> = vec![
+        "Repo URL".to_string(),
+        "Scraper Result (JSON)".to_string(),
+        "Scraper Keyword Matches".to_string(),
+        "Scraper Snapshot URL".to_string(),
+    ];
+
+    // For each header, the resolver returns either the column letter where
+    // it already lives, or a freshly appended column. When the matching
+    // config field is set explicitly, we keep the old behavior: lay out the
+    // headers contiguously starting at that letter.
+    let update_data_cols: Vec<String> = if config.update_data_col.trim().is_empty() {
+        resolve_or_append_columns(
+            &sheets,
+            &config.spreadsheet_id,
+            &config.write_sheet_name,
+            &update_data_headers,
+        )
+        .await?
+    } else {
+        write_row(
+            &sheets,
+            &config.spreadsheet_id,
+            &config.write_sheet_name,
+            &config.update_data_col,
+            1,
+            update_data_headers.clone(),
+        )
+        .await?;
+        let start = column_letter_to_number(&config.update_data_col);
+        (0..update_data_headers.len())
+            .map(|i| column_number_to_letter(start + i))
+            .collect()
+    };
+
+    let user_write_cols: Vec<String> = if config.user_write_col.trim().is_empty() {
+        resolve_or_append_columns(
+            &sheets,
+            &config.spreadsheet_id,
+            &config.user_write_sheet,
+            &user_headers,
+        )
+        .await?
+    } else {
+        write_row(
+            &sheets,
+            &config.spreadsheet_id,
+            &config.user_write_sheet,
+            &config.user_write_col,
+            1,
+            user_headers.clone(),
+        )
+        .await?;
+        let start = column_letter_to_number(&config.user_write_col);
+        (0..user_headers.len())
+            .map(|i| column_number_to_letter(start + i))
+            .collect()
+    };
+
+    let search_cols: Vec<String> = if config.search_update_data_col.trim().is_empty() {
+        resolve_or_append_columns(
+            &sheets,
+            &config.spreadsheet_id,
+            &config.search_write_sheet_name,
+            &search_headers,
+        )
+        .await?
+    } else {
+        write_row(
+            &sheets,
+            &config.spreadsheet_id,
+            &config.search_write_sheet_name,
+            &config.search_update_data_col,
+            1,
+            search_headers.clone(),
+        )
+        .await?;
+        let start = column_letter_to_number(&config.search_update_data_col);
+        (0..search_headers.len())
+            .map(|i| column_number_to_letter(start + i))
+            .collect()
+    };
+
+    println!(
+        "Resolved write columns — update_data: {:?}, user: {:?}, search: {:?}",
+        update_data_cols, user_write_cols, search_cols
+    );
 
     let columns = read_columns_from_sheet(
         &sheets,
@@ -171,17 +267,16 @@ async fn main() -> Result<()> {
             }
 
             println!("Writing {} row", search_row_idx);
-            write_row(
+            write_named_cells(
                 &sheets,
                 &config.spreadsheet_id,
                 &config.search_write_sheet_name,
-                &config.search_update_data_col,
                 search_row_idx,
-                vec![
-                    repo_url.clone(),
-                    serde_json::to_string(&update_data)?,
-                    update_data.keyword_matches.to_string(),
-                    update_data.snapshot_url,
+                &[
+                    (&search_cols[0], repo_url.clone()),
+                    (&search_cols[1], serde_json::to_string(&update_data)?),
+                    (&search_cols[2], update_data.keyword_matches.to_string()),
+                    (&search_cols[3], update_data.snapshot_url.clone()),
                 ],
             )
             .await?;
@@ -242,40 +337,44 @@ async fn main() -> Result<()> {
                     }
                     final_results.push(update_data.clone());
 
-                    // Write the update data to Sheets
-                    write_row(
+                    // Write the user identity block.
+                    write_named_cells(
                         &sheets,
                         &config.spreadsheet_id,
-                        &config.write_sheet_name,
-                        &config.user_write_col,
+                        &config.user_write_sheet,
                         row_reading,
-                        vec![owner.clone(), config.read_sheet_name.clone()],
+                        &[
+                            (&user_write_cols[0], owner.clone()),
+                            (&user_write_cols[1], config.read_sheet_name.clone()),
+                        ],
                     )
                     .await?;
 
                     if let Some(error) = error_message {
                         println!("❌ Error processing {}: {}", repo_url, error);
-                        // Write error to config.update_data_col
+                        // Error goes into the JSON-result column.
                         write_to_cell(
                             &sheets,
                             &config.spreadsheet_id,
                             &config.write_sheet_name,
-                            &config.update_data_col,
+                            &update_data_cols[0],
                             row_reading,
                             &format!("❌ Error: {}", error),
                         )
                         .await?;
                     } else {
-                        write_row(
+                        write_named_cells(
                             &sheets,
                             &config.spreadsheet_id,
                             &config.write_sheet_name,
-                            &config.update_data_col,
                             row_reading,
-                            vec![
-                                serde_json::to_string(&update_data)?,
-                                update_data.keyword_matches.to_string(),
-                                update_data.snapshot_url,
+                            &[
+                                (&update_data_cols[0], serde_json::to_string(&update_data)?),
+                                (
+                                    &update_data_cols[1],
+                                    update_data.keyword_matches.to_string(),
+                                ),
+                                (&update_data_cols[2], update_data.snapshot_url.clone()),
                             ],
                         )
                         .await?;
@@ -318,27 +417,29 @@ async fn main() -> Result<()> {
                 // Write the update data to Sheets
                 if let Some(error) = error_message {
                     println!("❌ Error processing {}: {}", repo_url, error);
-                    // Write error to config.update_data_col
+                    // Error goes into the JSON-result column.
                     write_to_cell(
                         &sheets,
                         &config.spreadsheet_id,
                         &config.write_sheet_name,
-                        &config.update_data_col,
+                        &update_data_cols[0],
                         row_reading,
                         &format!("❌ Error: {}", error),
                     )
                     .await?;
                 } else {
-                    write_row(
+                    write_named_cells(
                         &sheets,
                         &config.spreadsheet_id,
                         &config.write_sheet_name,
-                        &config.update_data_col,
                         row_reading,
-                        vec![
-                            serde_json::to_string(&update_data)?,
-                            update_data.keyword_matches.to_string(),
-                            update_data.snapshot_url,
+                        &[
+                            (&update_data_cols[0], serde_json::to_string(&update_data)?),
+                            (
+                                &update_data_cols[1],
+                                update_data.keyword_matches.to_string(),
+                            ),
+                            (&update_data_cols[2], update_data.snapshot_url.clone()),
                         ],
                     )
                     .await?;

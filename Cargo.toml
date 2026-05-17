@@ -1,7 +1,15 @@
 [package]
-name = "github-scrapper"
+name = "integration-validation"
 version = "0.1.0"
 edition = "2021"
+
+[[bin]]
+name = "scraper"
+path = "src/main.rs"
+
+[[bin]]
+name = "integration-check"
+path = "src/bin/integration_check.rs"
 
 [dependencies]
 dotenvy = "0.15"
@@ -17,3 +25,4 @@ hyper = "0.14"
 hyper-rustls = "0.23"
 chrono = "0.4.41"
 google-sheets4 = "3.1.0+20230118"
+futures = "0.3"

@@ -328,25 +328,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "github-scrapper"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64 0.21.7",
- "chrono",
- "dotenvy",
- "google-sheets4",
- "hyper",
- "hyper-rustls",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
- "url 2.5.7",
- "yup-oauth2",
-]
-
-[[package]]
 name = "google-sheets4"
 version = "3.1.0+20220221"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -619,6 +600,26 @@ checksum = "6717a8d2a5a929a1a2eb43a12812498ed141a0bcfb7e8f7844fbdbe4303bba9f"
 dependencies = [
  "equivalent",
  "hashbrown",
+]
+
+[[package]]
+name = "integration-validation"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.21.7",
+ "chrono",
+ "dotenvy",
+ "futures",
+ "google-sheets4",
+ "hyper",
+ "hyper-rustls",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "url 2.5.7",
+ "yup-oauth2",
 ]
 
 [[package]]

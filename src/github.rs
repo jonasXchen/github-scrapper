@@ -57,23 +57,76 @@ pub struct Repository {
     pub html_url: String,
 }
 
-pub fn classify_github_url(url: &str) -> GitHubUrlType {
-    if let Ok(parsed_url) = Url::parse(url) {
-        let segments: Vec<_> = parsed_url
-            .path_segments()
-            .map(|c| c.collect::<Vec<_>>())
-            .unwrap_or_default();
+/// Clean up dirty GitHub URLs into a canonical `https://github.com/owner[/repo]` form.
+/// Handles:
+///   - missing scheme         (`github.com/foo/bar`, `foo/bar`)
+///   - `www.` host prefix
+///   - SSH style              (`git@github.com:foo/bar.git`)
+///   - `.git` suffix on the repo segment
+///   - trailing slashes, query strings, fragments
+///   - deep paths             (`.../tree/main/...` → keeps only owner/repo)
+///
+/// Returns `None` if the input can't be coerced into a GitHub URL.
+pub fn normalize_github_url(input: &str) -> Option<String> {
+    let mut s = input.trim().to_string();
+    if s.is_empty() {
+        return None;
+    }
 
-        match segments.as_slice() {
-            [owner] => GitHubUrlType::User(owner.to_string()),
-            [owner, repo_name] => GitHubUrlType::Repo {
-                owner: owner.to_string(),
-                repo_name: repo_name.to_string(),
-            },
-            _ => GitHubUrlType::Invalid,
-        }
-    } else {
-        GitHubUrlType::Invalid
+    // SSH form: git@github.com:owner/repo(.git)
+    if let Some(rest) = s.strip_prefix("git@github.com:") {
+        s = format!("https://github.com/{}", rest);
+    }
+
+    // Add scheme if missing.
+    if !s.starts_with("http://") && !s.starts_with("https://") {
+        let stripped = s
+            .trim_start_matches("www.")
+            .trim_start_matches("github.com/")
+            .trim_start_matches('/');
+        s = format!("https://github.com/{}", stripped);
+    } else if s.starts_with("http://github.com") {
+        s = s.replacen("http://", "https://", 1);
+    }
+
+    let parsed = Url::parse(&s).ok()?;
+    let host = parsed.host_str()?;
+    if host != "github.com" && host != "www.github.com" {
+        return None;
+    }
+
+    let segments: Vec<String> = parsed
+        .path_segments()?
+        .filter(|seg| !seg.is_empty())
+        .map(|seg| seg.trim_end_matches(".git").to_string())
+        .take(2) // owner [, repo] — drop /tree/main/... etc.
+        .collect();
+
+    if segments.is_empty() {
+        return None;
+    }
+    Some(format!("https://github.com/{}", segments.join("/")))
+}
+
+pub fn classify_github_url(url: &str) -> GitHubUrlType {
+    let Some(normalized) = normalize_github_url(url) else {
+        return GitHubUrlType::Invalid;
+    };
+    let Ok(parsed_url) = Url::parse(&normalized) else {
+        return GitHubUrlType::Invalid;
+    };
+    let segments: Vec<_> = parsed_url
+        .path_segments()
+        .map(|c| c.collect::<Vec<_>>())
+        .unwrap_or_default();
+
+    match segments.as_slice() {
+        [owner] => GitHubUrlType::User(owner.to_string()),
+        [owner, repo_name] => GitHubUrlType::Repo {
+            owner: owner.to_string(),
+            repo_name: repo_name.to_string(),
+        },
+        _ => GitHubUrlType::Invalid,
     }
 }
 
@@ -82,7 +135,8 @@ pub fn get_github_repo(url: &str) -> Option<String> {
 }
 
 pub fn parse_github_url(url: &str) -> Option<(String, String)> {
-    Url::parse(url)
+    let normalized = normalize_github_url(url)?;
+    Url::parse(&normalized)
         .ok()?
         .path_segments()?
         .collect::<Vec<_>>()

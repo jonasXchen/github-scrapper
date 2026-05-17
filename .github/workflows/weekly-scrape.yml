@@ -37,7 +37,7 @@ jobs:
           echo "GOOGLE_SERVICE_ACCOUNT_B64=${{ secrets.GOOGLE_SERVICE_ACCOUNT_B64 }}" >> .env
 
       - name: Build scraper
-        run: cargo build --release
+        run: cargo build --release --bin scraper
 
       - name: Run scraper
-        run: cargo run --release
+        run: cargo run --release --bin scraper
