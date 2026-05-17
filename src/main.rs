@@ -219,8 +219,17 @@ async fn main() -> Result<()> {
         "\"ephemeral-rollups-sdk\" in:file filename:Cargo.toml",
         "\"ephemeral-rollups-pinocchio\" in:file filename:Cargo.toml",
     ];
-    let filtered_repo_urls: Vec<String> = search_github_repos(queries, &github_token).await?;
-    // let filtered_repo_urls = Vec::<String>::new();
+    // Toggle the public-search pass via env var. Set `RUN_SEARCH=true` to
+    // run `search_github_repos` over `queries`; otherwise it's skipped.
+    let run_search = env::var("RUN_SEARCH")
+        .ok()
+        .map(|v| matches!(v.trim().to_lowercase().as_str(), "true" | "1" | "yes" | "on"))
+        .unwrap_or(false);
+    let filtered_repo_urls: Vec<String> = if run_search {
+        search_github_repos(queries, &github_token).await?
+    } else {
+        Vec::<String>::new()
+    };
     // Add repos to sheets
     let mut search_row_idx = 2;
     if (filtered_repo_urls.len() > 0) {
