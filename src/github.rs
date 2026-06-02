@@ -418,10 +418,10 @@ pub async fn search_code(
     Ok(res.items)
 }
 
-pub async fn search_github_repos(queries: [&str; 4], github_token: &str) -> Result<Vec<String>> {
+pub async fn search_github_repos(queries: &[&str], github_token: &str) -> Result<Vec<String>> {
     let mut seen_repos: HashSet<String> = HashSet::new();
-    for query in queries {
-        match search_code(query, &github_token).await {
+    for &query in queries {
+        match search_code(query, github_token).await {
             Ok(items) => {
                 for item in items {
                     if let Some(repo_url) = get_github_repo(&item.html_url) {

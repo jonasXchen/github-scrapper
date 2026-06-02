@@ -1,12 +1,23 @@
-name: Weekly GitHub Search Scraper
+name: Manual Sheet Scraper
 
 on:
-  schedule:
-    - cron: "0 0 * * 1"
   workflow_dispatch:
+    inputs:
+      sheet_name:
+        description: Sheet tab name to read from and write to
+        required: false
+        default: Frontier
+      row_skip:
+        description: Number of sheet data rows to skip after the header
+        required: false
+        default: "0"
+      continue_scrape:
+        description: Skip rows where Scraper Result (JSON) is already filled
+        required: false
+        default: "true"
 
 jobs:
-  github-search:
+  sheet-scrape:
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -30,10 +41,15 @@ jobs:
       - name: Build scraper
         run: cargo build --release --bin scraper
 
-      - name: Run GitHub-only scraper
+      - name: Run sheet-only scraper
         env:
-          SCRAPER_MODE: search
+          SCRAPER_MODE: sheet
+          SCRAPER_SHEET_NAME: ${{ inputs.sheet_name }}
+          ROW_SKIP: ${{ inputs.row_skip }}
+          SCRAPER_CONTINUE: ${{ inputs.continue_scrape }}
           PRIVATE_GITHUB_TOKEN: ${{ secrets.PRIVATE_GITHUB_TOKEN }}
+          GOOGLE_SERVICE_ACCOUNT_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_B64 }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
           ES_APIKEY: ${{ secrets.ES_APIKEY }}
           ES_ENDPOINT: ${{ secrets.ES_ENDPOINT }}
           ES_INDEX: ${{ secrets.ES_INDEX }}

@@ -1,4 +1,5 @@
 use anyhow::Result;
+use base64::{engine::general_purpose, Engine as _};
 use google_sheets4::{
     api::{
         AppendDimensionRequest, BatchUpdateSpreadsheetRequest, BatchUpdateValuesRequest, Request,
@@ -6,7 +7,6 @@ use google_sheets4::{
     },
     Sheets,
 };
-use base64::{engine::general_purpose, Engine as _};
 use hyper_rustls::HttpsConnectorBuilder;
 use std::collections::HashMap;
 use yup_oauth2::{ServiceAccountAuthenticator, ServiceAccountKey};
@@ -229,7 +229,15 @@ pub async fn resolve_or_append_column(
     }
 
     let next_col = column_number_to_letter(headers.len() + 1);
-    write_to_cell(sheets, spreadsheet_id, sheet_name, &next_col, 1, header_name).await?;
+    write_to_cell(
+        sheets,
+        spreadsheet_id,
+        sheet_name,
+        &next_col,
+        1,
+        header_name,
+    )
+    .await?;
     Ok(next_col)
 }
 
@@ -249,12 +257,7 @@ pub async fn ensure_grid_columns(
         .sheets
         .unwrap_or_default()
         .into_iter()
-        .find(|s| {
-            s.properties
-                .as_ref()
-                .and_then(|p| p.title.as_deref())
-                == Some(sheet_name)
-        })
+        .find(|s| s.properties.as_ref().and_then(|p| p.title.as_deref()) == Some(sheet_name))
         .ok_or_else(|| anyhow::anyhow!("sheet '{}' not found in spreadsheet", sheet_name))?;
     let props = sheet
         .properties
