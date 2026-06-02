@@ -1,5 +1,4 @@
 use crate::{
-    elk::ingest_via_logstash,
     helper::{check_api_request_limit, format_for_mapping},
     types::{self, GitHubUpdateData},
 };
@@ -149,8 +148,8 @@ pub async fn process_repo(
     owner: &str,
     repo: &str,
     github_token: &str,
-    keywords: &[&str; 10],
-    allowed_extensions: &[&str; 4],
+    keywords: &[&str],
+    allowed_extensions: &[&str],
     files_limit: usize,
 ) -> Option<(HashMap<String, KeywordResult>, String, usize)> {
     let tree_url = format!(
@@ -295,7 +294,7 @@ pub async fn fetch_user_repos(
     repos_limit: usize,
 ) -> (Vec<String>, usize) {
     let mut repo_urls = Vec::new();
-    let mut page = 1;
+    let page = 1;
 
     loop {
         let url = format!(
@@ -325,15 +324,11 @@ pub async fn fetch_user_repos(
         }
 
         for repo in repos {
-            if let (Some(name), Some(html_url)) = (
-                repo.get("name").and_then(|n| n.as_str()),
-                repo.get("html_url").and_then(|u| u.as_str()),
-            ) {
+            if let Some(html_url) = repo.get("html_url").and_then(|u| u.as_str()) {
                 repo_urls.push(html_url.to_string());
             }
         }
 
-        page += 1;
         break; // break after 1st page
     }
 
@@ -345,8 +340,8 @@ pub async fn handle_github_repo_url(
     client: &Client,
     repo_url: &str,
     github_token: &str,
-    keywords: &[&str; 10],
-    allowed_extensions: &[&str; 4],
+    keywords: &[&str],
+    allowed_extensions: &[&str],
     limit: usize,
     origin: &str,
 ) -> Result<(GitHubUpdateData, Option<String>)> {
@@ -367,8 +362,8 @@ pub async fn handle_github_repo_url(
             &owner,
             &repo,
             &github_token,
-            &keywords,
-            &allowed_extensions,
+            keywords,
+            allowed_extensions,
             limit,
         )
         .await

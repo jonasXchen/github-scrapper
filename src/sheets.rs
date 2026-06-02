@@ -6,15 +6,15 @@ use google_sheets4::{
     },
     Sheets,
 };
+use base64::{engine::general_purpose, Engine as _};
 use hyper_rustls::HttpsConnectorBuilder;
 use std::collections::HashMap;
-use std::env;
 use yup_oauth2::{ServiceAccountAuthenticator, ServiceAccountKey};
 
 pub async fn init_sheets() -> Result<Sheets> {
     let creds_b64 = std::env::var("GOOGLE_SERVICE_ACCOUNT_B64")
         .expect("Missing GOOGLE_SERVICE_ACCOUNT_B64 env var");
-    let creds_json = base64::decode(creds_b64)?;
+    let creds_json = general_purpose::STANDARD.decode(creds_b64)?;
     let creds: ServiceAccountKey = serde_json::from_slice(&creds_json)?;
 
     let auth = ServiceAccountAuthenticator::builder(creds).build().await?;

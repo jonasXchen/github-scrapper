@@ -12,7 +12,7 @@ use integration_validation::sheets::{
 };
 use integration_validation::types::{Config, GitHubUpdateData};
 use reqwest::Client;
-use std::{collections::HashSet, env, fs::File, io::Write, vec};
+use std::{env, fs::File, io::Write, vec};
 
 #[tokio::main]
 
@@ -44,8 +44,8 @@ async fn main() -> Result<()> {
         // update_data_col: "AA".to_string(),
         // user_write_sheet: "User".to_string(),
         // user_write_col: "AA".to_string(),
-        read_sheet_name: "SNS Frontier Privacy Track".to_string(),
-        write_sheet_name: "SNS Frontier Privacy Track".to_string(),
+        read_sheet_name: "Frontier".to_string(),
+        write_sheet_name: "Frontier".to_string(),
         read_range: "".to_string(),
         update_data_col: "".to_string(),
         user_write_sheet: "User".to_string(),
@@ -56,9 +56,10 @@ async fn main() -> Result<()> {
     };
 
     const ALLOWED_EXTENSIONS: [&str; 4] = [".toml", ".json", ".rs", ".ts"];
-    const KEYWORDS: [&str; 10] = [
+    const KEYWORDS: [&str; 11] = [
         "ephemeral-rollups-sdk",
         "ephemeral-rollups-kit",
+        "ephemeral-vrf-sdk",
         "#[ephemeral]",
         "#[commit]",
         "#[delegate]",
@@ -223,7 +224,12 @@ async fn main() -> Result<()> {
     // run `search_github_repos` over `queries`; otherwise it's skipped.
     let run_search = env::var("RUN_SEARCH")
         .ok()
-        .map(|v| matches!(v.trim().to_lowercase().as_str(), "true" | "1" | "yes" | "on"))
+        .map(|v| {
+            matches!(
+                v.trim().to_lowercase().as_str(),
+                "true" | "1" | "yes" | "on"
+            )
+        })
         .unwrap_or(false);
     let filtered_repo_urls: Vec<String> = if run_search {
         search_github_repos(queries, &github_token).await?
@@ -232,12 +238,12 @@ async fn main() -> Result<()> {
     };
     // Add repos to sheets
     let mut search_row_idx = 2;
-    if (filtered_repo_urls.len() > 0) {
+    if filtered_repo_urls.len() > 0 {
         println!("Processing Public Search ...");
         for repo_url in &filtered_repo_urls {
             println!("Processing {} ...", repo_url);
 
-            let (mut update_data, error_message) = handle_github_repo_url(
+            let (mut update_data, _error_message) = handle_github_repo_url(
                 &client,
                 repo_url,
                 &github_token,
@@ -301,9 +307,18 @@ async fn main() -> Result<()> {
 
     // Going through Sheets
     let row_idx = 2;
-    let row_skip = 0;
+    let row_skip: usize = env::var("ROW_SKIP")
+        .ok()
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(0);
     let mut row_reading = row_idx + row_skip;
-    for (idx, repo_url) in repos.iter().enumerate().skip(row_skip) {
+    if row_skip > 0 {
+        println!(
+            "Skipping first {} sheet data row(s); starting at row {}.",
+            row_skip, row_reading
+        );
+    }
+    for repo_url in repos.iter().skip(row_skip) {
         println!(
             "Reading row {} in {}: {}",
             row_reading, config.read_sheet_name, repo_url
@@ -328,7 +343,7 @@ async fn main() -> Result<()> {
                     .await?;
 
                     // Skip if there are no keyword matches (only record users with keyword matches) or data is empty
-                    if (update_data.keyword_matches == "0" || update_data.is_empty()) {
+                    if update_data.keyword_matches == "0" || update_data.is_empty() {
                         continue;
                     }
 
@@ -453,7 +468,7 @@ async fn main() -> Result<()> {
                     )
                     .await?;
 
-                    println!("✅ Row {} updated", idx + 2);
+                    println!("✅ Row {} updated", row_reading);
                 }
                 row_reading += 1;
             }
