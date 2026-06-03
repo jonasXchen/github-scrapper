@@ -408,12 +408,20 @@ async fn main() -> Result<()> {
         }
         for (data_row_idx, repo_url) in repos.iter().enumerate().skip(row_skip) {
             let row_reading = row_idx + data_row_idx;
+            let repo_url = repo_url.trim();
             if continue_from_results
                 && row_has_value(&sheet_columns, &continue_column, data_row_idx)
             {
                 println!(
                     "Skipping row {} because '{}' is already filled.",
                     row_reading, continue_column
+                );
+                continue;
+            }
+            if repo_url.is_empty() {
+                println!(
+                    "Skipping row {} because the GitHub URL cell is empty.",
+                    row_reading
                 );
                 continue;
             }
@@ -429,6 +437,7 @@ async fn main() -> Result<()> {
                     println!("👤 Detected GitHub user/org: {}", owner);
                     let (repos, total) = fetch_user_repos(&client, &owner, &github_token, 10).await;
                     println!("🔍 Found {} repos for {}", total, owner);
+                    let mut matched_user_repos = false;
                     for repo_url in repos {
                         let (mut update_data, error_message) = handle_github_repo_url(
                             &client,
@@ -445,6 +454,7 @@ async fn main() -> Result<()> {
                         if update_data.keyword_matches == "0" || update_data.is_empty() {
                             continue;
                         }
+                        matched_user_repos = true;
 
                         // Only ingest if it's not empty/default
                         if !update_data.is_empty() {
@@ -507,6 +517,48 @@ async fn main() -> Result<()> {
                             .await?;
                             println!("✅ Row {} updated", row_reading);
                         }
+                    }
+
+                    if !matched_user_repos {
+                        let update_data = GitHubUpdateData {
+                            owner: owner.clone(),
+                            origin: config.read_sheet_name.clone(),
+                            keyword_matches: "0".to_string(),
+                            ..Default::default()
+                        };
+                        final_results.push(update_data.clone());
+
+                        write_named_cells(
+                            sheets,
+                            &config.spreadsheet_id,
+                            &config.user_write_sheet,
+                            row_reading,
+                            &[
+                                (&user_write_cols[0], owner.clone()),
+                                (&user_write_cols[1], config.read_sheet_name.clone()),
+                            ],
+                        )
+                        .await?;
+
+                        write_named_cells(
+                            sheets,
+                            &config.spreadsheet_id,
+                            &config.write_sheet_name,
+                            row_reading,
+                            &[
+                                (&update_data_cols[0], serde_json::to_string(&update_data)?),
+                                (
+                                    &update_data_cols[1],
+                                    update_data.keyword_matches.to_string(),
+                                ),
+                                (&update_data_cols[2], update_data.snapshot_url.clone()),
+                            ],
+                        )
+                        .await?;
+                        println!(
+                            "✅ Row {} marked complete; no keyword matches found for {}.",
+                            row_reading, owner
+                        );
                     }
                 }
 
@@ -576,6 +628,15 @@ async fn main() -> Result<()> {
 
                 GitHubUrlType::Invalid => {
                     println!("❗ Invalid GitHub URL: {}", repo_url);
+                    write_to_cell(
+                        sheets,
+                        &config.spreadsheet_id,
+                        &config.write_sheet_name,
+                        &update_data_cols[0],
+                        row_reading,
+                        &format!("❌ Invalid GitHub URL: {}", repo_url),
+                    )
+                    .await?;
                 }
             }
         }
