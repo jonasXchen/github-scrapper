@@ -45,6 +45,17 @@ jobs:
       - name: Build integration-check
         run: cargo build --release --bin integration-check
 
+      - name: Debug secret presence (lengths only, no values)
+        env:
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_B64 }}
+        run: |
+          echo "SPREADSHEET_ID length: ${#SPREADSHEET_ID}"
+          echo "SPREADSHEET_ID first4: ${SPREADSHEET_ID:0:4}"
+          echo "GOOGLE_SERVICE_ACCOUNT_B64 length: ${#GOOGLE_SERVICE_ACCOUNT_B64}"
+          # decode the SA email to confirm WHICH service account CI is using
+          echo "SA client_email: $(echo "$GOOGLE_SERVICE_ACCOUNT_B64" | base64 -d 2>/dev/null | grep -o '"client_email"[^,]*' || echo '(decode failed)')"
+
       - name: Run integration check
         env:
           GOOGLE_SERVICE_ACCOUNT_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_B64 }}

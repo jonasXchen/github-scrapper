@@ -43,7 +43,7 @@ const TARGETS: &[&str] = &[
 
 // ─── Defaults (override via .env if desired) ─────────────────────────────────
 const DEFAULT_SPREADSHEET_ID: &str = "1aYacUptAwX2bqbvy9uZFdzcVjdTB7RXmjqLo851NTxs";
-const DEFAULT_SHEET_NAME: &str = "SNS Frontier Privacy Track";
+const DEFAULT_SHEET_NAME: &str = "Blitz v5";
 const DEFAULT_READ_RANGE: &str = "";
 const DEFAULT_WRITE_START_COL: &str = "";
 /// Maximum number of recent transactions to inspect for each source program.
