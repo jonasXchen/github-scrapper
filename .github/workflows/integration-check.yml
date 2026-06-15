@@ -1,0 +1,58 @@
+name: Integration Check
+
+on:
+  workflow_dispatch:
+    inputs:
+      sheet_name:
+        description: Sheet tab to read program addresses from and write results to
+        required: false
+        default: SNS Frontier Privacy Track
+      tx_limit:
+        description: Max recent transactions to inspect per program address
+        required: false
+        default: "100"
+      concurrency:
+        description: Number of program addresses processed in parallel
+        required: false
+        default: "10"
+
+concurrency:
+  group: integration-check-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  integration-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Build integration-check
+        run: cargo build --release --bin integration-check
+
+      - name: Run integration check
+        env:
+          GOOGLE_SERVICE_ACCOUNT_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_B64 }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          # Public MagicBlock RPCs by default; override via repo secrets if needed.
+          SOLANA_RPC_URL_MAINNET: ${{ secrets.SOLANA_RPC_URL_MAINNET || 'https://rpc.magicblock.app/mainnet' }}
+          SOLANA_RPC_URL_DEVNET: ${{ secrets.SOLANA_RPC_URL_DEVNET || 'https://rpc.magicblock.app/devnet' }}
+          INTEGRATION_SHEET_NAME: ${{ github.event.inputs.sheet_name || 'SNS Frontier Privacy Track' }}
+          INTEGRATION_TX_LIMIT: ${{ github.event.inputs.tx_limit || '100' }}
+          INTEGRATION_CONCURRENCY: ${{ github.event.inputs.concurrency || '10' }}
+        run: cargo run --release --bin integration-check
