@@ -345,7 +345,7 @@ async fn main() -> Result<()> {
                         update_data.add_fields_if_exist(&cleaned_columns, &fields, search_row_idx);
                     }
                     let response = ingest_via_logstash(
-                        "https://es.metacamp.sg/logstash/",
+                        "https://elk.jonas-chen.com/logstash/",
                         "ELK",
                         &serde_json::to_value(&update_data)?,
                     )
@@ -464,7 +464,7 @@ async fn main() -> Result<()> {
                                 data_row_idx,
                             );
                             let response = ingest_via_logstash(
-                                "https://es.metacamp.sg/logstash/",
+                                "https://elk.jonas-chen.com/logstash/",
                                 "ELK",
                                 &serde_json::to_value(&update_data)?,
                             )
@@ -581,7 +581,7 @@ async fn main() -> Result<()> {
                     if !update_data.is_empty() {
                         update_data.add_fields_if_exist(&cleaned_columns, &fields, data_row_idx);
                         let response = ingest_via_logstash(
-                            "https://es.metacamp.sg/logstash/",
+                            "https://elk.jonas-chen.com/logstash/",
                             "ELK",
                             &serde_json::to_value(&update_data)?,
                         )
