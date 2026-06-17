@@ -11,6 +11,10 @@ path = "src/main.rs"
 name = "integration-check"
 path = "src/bin/integration_check.rs"
 
+[[bin]]
+name = "commit-check"
+path = "src/bin/commit_check.rs"
+
 [dependencies]
 dotenvy = "0.15"
 reqwest = { version = "0.11", features = ["blocking", "json"] }

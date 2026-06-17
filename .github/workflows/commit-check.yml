@@ -1,0 +1,69 @@
+name: Commit Check
+
+on:
+  workflow_dispatch:
+    inputs:
+      sheet_name:
+        description: Sheet tab to read repo URLs from and write active-day counts to
+        required: false
+        default: SNS Frontier Privacy Track
+      window_days:
+        description: Window (days) over which to count the owner's active commit-days
+        required: false
+        default: "30"
+      concurrency:
+        description: Number of repo owners processed in parallel
+        required: false
+        default: "5"
+
+concurrency:
+  group: commit-check-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  commit-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Build commit-check
+        run: cargo build --release --bin commit-check
+
+      - name: Debug secret presence (lengths only, no values)
+        env:
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_B64 }}
+          PRIVATE_GITHUB_TOKEN: ${{ secrets.PRIVATE_GITHUB_TOKEN }}
+        run: |
+          echo "SPREADSHEET_ID length: ${#SPREADSHEET_ID}"
+          echo "SPREADSHEET_ID first4: ${SPREADSHEET_ID:0:4}"
+          echo "GOOGLE_SERVICE_ACCOUNT_B64 length: ${#GOOGLE_SERVICE_ACCOUNT_B64}"
+          echo "PRIVATE_GITHUB_TOKEN length: ${#PRIVATE_GITHUB_TOKEN}"
+          # decode the SA email to confirm WHICH service account CI is using
+          echo "SA client_email: $(echo "$GOOGLE_SERVICE_ACCOUNT_B64" | base64 -d 2>/dev/null | grep -o '"client_email"[^,]*' || echo '(decode failed)')"
+
+      - name: Run commit check
+        env:
+          GOOGLE_SERVICE_ACCOUNT_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_B64 }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          PRIVATE_GITHUB_TOKEN: ${{ secrets.PRIVATE_GITHUB_TOKEN }}
+          INTEGRATION_SHEET_NAME: ${{ github.event.inputs.sheet_name || 'SNS Frontier Privacy Track' }}
+          COMMIT_WINDOW_DAYS: ${{ github.event.inputs.window_days || '30' }}
+          COMMIT_CONCURRENCY: ${{ github.event.inputs.concurrency || '5' }}
+        run: cargo run --release --bin commit-check
