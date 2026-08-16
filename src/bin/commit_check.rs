@@ -35,7 +35,7 @@ use std::time::Duration;
 
 // ─── Defaults (override via .env if desired) ─────────────────────────────────
 const DEFAULT_SPREADSHEET_ID: &str = "1aYacUptAwX2bqbvy9uZFdzcVjdTB7RXmjqLo851NTxs";
-const DEFAULT_SHEET_NAME: &str = "Frontier";
+const DEFAULT_SHEET_NAME: &str = "Founders Camp (BUILD)";
 const DEFAULT_READ_RANGE: &str = "";
 /// How far back to count commit activity, in days.
 const DEFAULT_WINDOW_DAYS: i64 = 30;
@@ -141,14 +141,16 @@ async fn commit_activity(
                 .and_then(|v| v.as_array())
             {
                 for repo in repos {
-                    if let Some(nodes) =
-                        repo.pointer("/contributions/nodes").and_then(|v| v.as_array())
+                    if let Some(nodes) = repo
+                        .pointer("/contributions/nodes")
+                        .and_then(|v| v.as_array())
                     {
                         for n in nodes {
                             if let Some(d) = n.get("occurredAt").and_then(|v| v.as_str()) {
                                 days.insert(d[..10.min(d.len())].to_string());
                             }
-                            total_commits += n.get("commitCount").and_then(|v| v.as_u64()).unwrap_or(0);
+                            total_commits +=
+                                n.get("commitCount").and_then(|v| v.as_u64()).unwrap_or(0);
                         }
                     }
                 }
@@ -166,7 +168,11 @@ async fn commit_activity(
         "variables": { "login": owner, "from": from }
     });
     if let Some(data) = graphql_post(http, token, &org_q).await {
-        if data.get("organization").map(|o| !o.is_null()).unwrap_or(false) {
+        if data
+            .get("organization")
+            .map(|o| !o.is_null())
+            .unwrap_or(false)
+        {
             let mut days: HashSet<String> = HashSet::new();
             let mut total_commits: u64 = 0;
             if let Some(repos) = data
@@ -177,8 +183,10 @@ async fn commit_activity(
                     let Some(history) = repo.pointer("/defaultBranchRef/target/history") else {
                         continue;
                     };
-                    total_commits +=
-                        history.get("totalCount").and_then(|v| v.as_u64()).unwrap_or(0);
+                    total_commits += history
+                        .get("totalCount")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0);
                     if let Some(nodes) = history.get("nodes").and_then(|v| v.as_array()) {
                         for n in nodes {
                             if let Some(d) = n.get("committedDate").and_then(|v| v.as_str()) {

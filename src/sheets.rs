@@ -93,11 +93,52 @@ pub fn clean_column_names(
     original_columns: HashMap<String, Vec<String>>,
     rules: &[(Vec<&str>, &str)],
 ) -> HashMap<String, Vec<String>> {
+    // When several headers match the same rule, exactly one column must win:
+    // concatenating them (the old behavior) produced a value vector longer
+    // than the sheet, so row indices ran past the last row. The header
+    // matching the earliest keyword in the rule wins; ties break on header
+    // name so the outcome is deterministic despite HashMap iteration order.
+    let mut best: HashMap<String, (usize, String, Vec<String>)> = HashMap::new();
     let mut cleaned: HashMap<String, Vec<String>> = HashMap::new();
 
     for (original_name, values) in original_columns {
-        let renamed = rename_column(&original_name, rules);
-        cleaned.entry(renamed).or_default().extend(values);
+        let lower = original_name.to_lowercase();
+        let hit = rules.iter().find_map(|(keywords, new_name)| {
+            keywords
+                .iter()
+                .position(|k| lower.contains(&k.to_lowercase()))
+                .map(|kw_idx| (kw_idx, *new_name))
+        });
+
+        let Some((kw_idx, new_name)) = hit else {
+            cleaned.insert(original_name, values);
+            continue;
+        };
+
+        match best.get_mut(new_name) {
+            None => {
+                best.insert(new_name.to_string(), (kw_idx, original_name, values));
+            }
+            Some(current) => {
+                let (cur_idx, cur_name, _) = &*current;
+                if (kw_idx, original_name.as_str()) < (*cur_idx, cur_name.as_str()) {
+                    eprintln!(
+                        "⚠️  Multiple columns match '{}': using '{}', ignoring '{}'.",
+                        new_name, original_name, cur_name
+                    );
+                    *current = (kw_idx, original_name, values);
+                } else {
+                    eprintln!(
+                        "⚠️  Multiple columns match '{}': using '{}', ignoring '{}'.",
+                        new_name, cur_name, original_name
+                    );
+                }
+            }
+        }
+    }
+
+    for (new_name, (_, _, values)) in best {
+        cleaned.insert(new_name, values);
     }
 
     cleaned

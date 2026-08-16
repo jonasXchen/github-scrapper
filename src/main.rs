@@ -82,7 +82,7 @@ async fn main() -> Result<()> {
     let github_token = env::var("PRIVATE_GITHUB_TOKEN")?;
     let default_sheet_name = env_nonempty("SCRAPER_SHEET_NAME")
         .or_else(|| env_nonempty("SHEET_NAME"))
-        .unwrap_or_else(|| "Frontier".to_string());
+        .unwrap_or_else(|| "Founders Camp (BUILD)".to_string());
     let continue_from_results = env_bool("SCRAPER_CONTINUE").unwrap_or(false);
 
     let config = Config {
@@ -276,7 +276,7 @@ async fn main() -> Result<()> {
         cleaned_columns = clean_column_names(
             sheet_columns.clone(),
             &[
-                (vec!["gh", "github", "repo"], "snapshot_url"),
+                (vec!["github", "repo", "gh"], "snapshot_url"),
                 (vec!["presentation"], "presentation_link"),
                 (vec!["website"], "website_link"),
                 (vec!["technical", "demo"], "technical_link"),
