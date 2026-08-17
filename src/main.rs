@@ -6,9 +6,9 @@ use integration_validation::github::{
     GitHubUrlType,
 };
 use integration_validation::sheets::{
-    clean_column_names, column_letter_to_number, column_number_to_letter, init_sheets,
-    read_columns_from_sheet, resolve_or_append_columns, write_named_cells, write_row,
-    write_to_cell,
+    clean_column_names, column_letter_to_number, column_number_to_letter, find_rule_columns,
+    init_sheets, read_columns_from_sheet, resolve_or_append_columns, row_cell_still_matches,
+    write_named_cells, write_row, write_to_cell,
 };
 use integration_validation::types::{Config, GitHubUpdateData};
 use reqwest::Client;
@@ -173,6 +173,19 @@ async fn main() -> Result<()> {
         None
     };
 
+    let rename_rules: [(Vec<&str>, &str); 10] = [
+        (vec!["github", "repo", "gh"], "snapshot_url"),
+        (vec!["presentation"], "presentation_link"),
+        (vec!["website"], "website_link"),
+        (vec!["technical", "demo"], "technical_link"),
+        (vec!["files_processed"], "files_processed"),
+        (vec!["location", "country", "residence"], "location"),
+        (vec!["track"], "tracks"),
+        (vec!["contact", "telegram", "team", "twitter"], "contact"),
+        (vec!["wallet", "solana"], "wallet"),
+        (vec!["twitter", "social link"], "social_link"),
+    ];
+
     let mut update_data_cols: Vec<String> = Vec::new();
     let mut user_write_cols: Vec<String> = Vec::new();
     let mut search_cols: Vec<String> = Vec::new();
@@ -273,21 +286,7 @@ async fn main() -> Result<()> {
         .await?;
 
         // Extract sheet columns and normalize.
-        cleaned_columns = clean_column_names(
-            sheet_columns.clone(),
-            &[
-                (vec!["github", "repo", "gh"], "snapshot_url"),
-                (vec!["presentation"], "presentation_link"),
-                (vec!["website"], "website_link"),
-                (vec!["technical", "demo"], "technical_link"),
-                (vec!["files_processed"], "files_processed"),
-                (vec!["location", "country", "residence"], "location"),
-                (vec!["track"], "tracks"),
-                (vec!["contact", "telegram", "team", "twitter"], "contact"),
-                (vec!["wallet", "solana"], "wallet"),
-                (vec!["twitter", "social link"], "social_link"),
-            ],
-        );
+        cleaned_columns = clean_column_names(sheet_columns.clone(), &rename_rules);
         repos = cleaned_columns
             .get("snapshot_url")
             .cloned()
@@ -316,7 +315,7 @@ async fn main() -> Result<()> {
         for repo_url in &filtered_repo_urls {
             println!("Processing {} ...", repo_url);
 
-            let (mut update_data, _error_message) = handle_github_repo_url(
+            let (update_data, _error_message) = handle_github_repo_url(
                 &client,
                 repo_url,
                 &github_token,
@@ -339,11 +338,10 @@ async fn main() -> Result<()> {
             let doc_id = &update_data.commit_sha;
             let document_exist = es_document_exists(&es_index, doc_id).await?;
             if !document_exist {
-                // Only ingest if it's not empty/default
+                // Only ingest if it's not empty/default. Search results have
+                // no corresponding row in the read sheet, so they get no
+                // sheet-based enrichment fields.
                 if !update_data.is_empty() {
-                    if run_sheets {
-                        update_data.add_fields_if_exist(&cleaned_columns, &fields, search_row_idx);
-                    }
                     let response = ingest_via_logstash(
                         "https://elk.jonas-chen.com/logstash/",
                         "ELK",
@@ -406,9 +404,25 @@ async fn main() -> Result<()> {
                 continue_column
             );
         }
+
+        // Columns whose header maps to snapshot_url (e.g. every 'GitHub
+        // Repo' column). Before writing a result by absolute row number,
+        // we re-read these cells to confirm the row still holds the URL we
+        // scraped — rows can move if the sheet is sorted or rows are
+        // inserted/deleted while a long scrape is running.
+        let url_check_cols = find_rule_columns(
+            sheets,
+            &config.spreadsheet_id,
+            &config.read_sheet_name,
+            &rename_rules,
+            "snapshot_url",
+        )
+        .await?;
+
         for (data_row_idx, repo_url) in repos.iter().enumerate().skip(row_skip) {
             let row_reading = row_idx + data_row_idx;
             let repo_url = repo_url.trim();
+            let cell_url = repo_url;
             if continue_from_results
                 && row_has_value(&sheet_columns, &continue_column, data_row_idx)
             {
@@ -474,6 +488,23 @@ async fn main() -> Result<()> {
                         }
                         final_results.push(update_data.clone());
 
+                        if !row_cell_still_matches(
+                            sheets,
+                            &config.spreadsheet_id,
+                            &config.read_sheet_name,
+                            row_reading,
+                            &url_check_cols,
+                            cell_url,
+                        )
+                        .await?
+                        {
+                            println!(
+                                "⚠️  Row {} no longer holds '{}' (sheet changed mid-run); skipping write.",
+                                row_reading, cell_url
+                            );
+                            continue;
+                        }
+
                         // Write the user identity block.
                         write_named_cells(
                             sheets,
@@ -527,6 +558,23 @@ async fn main() -> Result<()> {
                             ..Default::default()
                         };
                         final_results.push(update_data.clone());
+
+                        if !row_cell_still_matches(
+                            sheets,
+                            &config.spreadsheet_id,
+                            &config.read_sheet_name,
+                            row_reading,
+                            &url_check_cols,
+                            cell_url,
+                        )
+                        .await?
+                        {
+                            println!(
+                                "⚠️  Row {} no longer holds '{}' (sheet changed mid-run); skipping write.",
+                                row_reading, cell_url
+                            );
+                            continue;
+                        }
 
                         write_named_cells(
                             sheets,
@@ -592,6 +640,23 @@ async fn main() -> Result<()> {
 
                     final_results.push(update_data.clone());
 
+                    if !row_cell_still_matches(
+                        sheets,
+                        &config.spreadsheet_id,
+                        &config.read_sheet_name,
+                        row_reading,
+                        &url_check_cols,
+                        cell_url,
+                    )
+                    .await?
+                    {
+                        println!(
+                            "⚠️  Row {} no longer holds '{}' (sheet changed mid-run); skipping write.",
+                            row_reading, cell_url
+                        );
+                        continue;
+                    }
+
                     // Write the update data to Sheets
                     if let Some(error) = error_message {
                         println!("❌ Error processing {}: {}", repo_url, error);
@@ -628,6 +693,22 @@ async fn main() -> Result<()> {
 
                 GitHubUrlType::Invalid => {
                     println!("❗ Invalid GitHub URL: {}", repo_url);
+                    if !row_cell_still_matches(
+                        sheets,
+                        &config.spreadsheet_id,
+                        &config.read_sheet_name,
+                        row_reading,
+                        &url_check_cols,
+                        cell_url,
+                    )
+                    .await?
+                    {
+                        println!(
+                            "⚠️  Row {} no longer holds '{}' (sheet changed mid-run); skipping write.",
+                            row_reading, cell_url
+                        );
+                        continue;
+                    }
                     write_to_cell(
                         sheets,
                         &config.spreadsheet_id,

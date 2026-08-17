@@ -78,26 +78,34 @@ pub async fn read_columns_from_sheet(
 
     let headers = &rows[0];
 
-    // A sheet can contain two columns with the identical header text. Only
-    // the first occurrence is read: pushing both cells into one vector would
-    // make it longer than the sheet, shifting every row index past the end.
-    let mut header_cols: Vec<(String, usize)> = Vec::new();
+    // A sheet can contain two columns with the identical header text (e.g. a
+    // Typeform with branching repeats 'GitHub Repo' once per branch, and each
+    // response fills only one of them). Duplicate occurrences are merged per
+    // row — the first non-empty cell wins — so every header still yields
+    // exactly one value per sheet row and row indices stay aligned.
+    let mut header_cols: Vec<(String, Vec<usize>)> = Vec::new();
     for (i, header) in headers.iter().enumerate() {
-        if header_cols.iter().any(|(h, _)| h == header) {
+        if let Some((_, occurrences)) = header_cols.iter_mut().find(|(h, _)| h == header) {
             eprintln!(
-                "⚠️  Duplicate header '{}' at column {}; using its first occurrence only.",
+                "⚠️  Duplicate header '{}' at column {}; merging per row (first non-empty cell wins).",
                 header,
                 column_number_to_letter(i + 1)
             );
+            occurrences.push(i);
         } else {
-            header_cols.push((header.clone(), i));
+            header_cols.push((header.clone(), vec![i]));
         }
     }
 
     let mut columns: HashMap<String, Vec<String>> = HashMap::new();
     for row in rows.iter().skip(1) {
-        for (header, i) in &header_cols {
-            let value = row.get(*i).cloned().unwrap_or_default();
+        for (header, occurrences) in &header_cols {
+            let value = occurrences
+                .iter()
+                .filter_map(|i| row.get(*i))
+                .find(|v| !v.trim().is_empty())
+                .cloned()
+                .unwrap_or_default();
             columns.entry(header.clone()).or_default().push(value);
         }
     }
@@ -431,6 +439,68 @@ pub async fn write_named_cells(
         })
         .collect();
     batch_update_values(sheets, spreadsheet_id, updates).await
+}
+
+/// Returns the column letters of every header in row 1 that `rename_column`
+/// maps to `target` under `rules` (e.g. all 'GitHub Repo'-like columns).
+pub async fn find_rule_columns(
+    sheets: &Sheets,
+    spreadsheet_id: &str,
+    sheet_name: &str,
+    rules: &[(Vec<&str>, &str)],
+    target: &str,
+) -> Result<Vec<String>> {
+    let range = format!("'{}'!1:1", sheet_name);
+    let resp = sheets
+        .spreadsheets()
+        .values_get(spreadsheet_id, &range)
+        .doit()
+        .await?;
+    let headers = resp
+        .1
+        .values
+        .unwrap_or_default()
+        .into_iter()
+        .next()
+        .unwrap_or_default();
+    Ok(headers
+        .iter()
+        .enumerate()
+        .filter(|(_, h)| rename_column(h, rules) == target)
+        .map(|(i, _)| column_number_to_letter(i + 1))
+        .collect())
+}
+
+/// Re-reads the given cells of one row in a single batchGet call and returns
+/// true if any of them still holds `expected` (trimmed). Rows can move under
+/// a long-running scrape (sorting, inserted/deleted rows); callers use this
+/// right before writing results by absolute row number. An empty `columns`
+/// list disables the check and returns true.
+pub async fn row_cell_still_matches(
+    sheets: &Sheets,
+    spreadsheet_id: &str,
+    sheet_name: &str,
+    row: usize,
+    columns: &[String],
+    expected: &str,
+) -> Result<bool> {
+    if columns.is_empty() {
+        return Ok(true);
+    }
+    let mut call = sheets.spreadsheets().values_batch_get(spreadsheet_id);
+    for col in columns {
+        call = call.add_ranges(&format!("'{}'!{}{}", sheet_name, col, row));
+    }
+    let resp = call.doit().await?;
+    let value_ranges = resp.1.value_ranges.unwrap_or_default();
+    Ok(value_ranges.iter().any(|vr| {
+        vr.values
+            .as_ref()
+            .and_then(|rows| rows.first())
+            .and_then(|r| r.first())
+            .map(|v| v.trim() == expected)
+            .unwrap_or(false)
+    }))
 }
 
 pub fn column_letter_to_number(letter: &str) -> usize {
