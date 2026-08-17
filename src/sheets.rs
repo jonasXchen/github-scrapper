@@ -77,11 +77,27 @@ pub async fn read_columns_from_sheet(
     }
 
     let headers = &rows[0];
-    let mut columns: HashMap<String, Vec<String>> = HashMap::new();
 
+    // A sheet can contain two columns with the identical header text. Only
+    // the first occurrence is read: pushing both cells into one vector would
+    // make it longer than the sheet, shifting every row index past the end.
+    let mut header_cols: Vec<(String, usize)> = Vec::new();
+    for (i, header) in headers.iter().enumerate() {
+        if header_cols.iter().any(|(h, _)| h == header) {
+            eprintln!(
+                "⚠️  Duplicate header '{}' at column {}; using its first occurrence only.",
+                header,
+                column_number_to_letter(i + 1)
+            );
+        } else {
+            header_cols.push((header.clone(), i));
+        }
+    }
+
+    let mut columns: HashMap<String, Vec<String>> = HashMap::new();
     for row in rows.iter().skip(1) {
-        for (i, header) in headers.iter().enumerate() {
-            let value = row.get(i).cloned().unwrap_or_default();
+        for (header, i) in &header_cols {
+            let value = row.get(*i).cloned().unwrap_or_default();
             columns.entry(header.clone()).or_default().push(value);
         }
     }

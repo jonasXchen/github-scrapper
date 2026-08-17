@@ -222,14 +222,15 @@ async fn run_check(
 ) -> Result<()> {
     let columns = read_columns_from_sheet(sheets, spreadsheet_id, sheet_name, read_range).await?;
 
-    let repo_key = columns
-        .keys()
-        .find(|k| k.to_lowercase().contains("repo url"))
-        .or_else(|| columns.keys().find(|k| k.to_lowercase().contains("repo")))
+    // Most-specific keyword first; a tab may name the column "Repo URL",
+    // "GitHub", "Github Link", etc.
+    let repo_key = ["repo url", "github", "repo", "gh"]
+        .iter()
+        .find_map(|kw| columns.keys().find(|k| k.to_lowercase().contains(kw)))
         .cloned()
         .ok_or_else(|| {
             anyhow!(
-                "No column containing 'repo' in sheet '{}' range {}",
+                "No column containing 'repo url'/'github'/'repo'/'gh' in sheet '{}' range {}",
                 sheet_name,
                 read_range
             )
