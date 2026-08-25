@@ -361,7 +361,7 @@ async fn run_check(
     let columns = read_columns_from_sheet(sheets, spreadsheet_id, sheet_name, read_range).await?;
     let pa_key = columns
         .keys()
-        .find(|k| k.to_lowercase().contains("program address"))
+        .find(|k| k.to_lowercase().replace('_', " ").contains("program address"))
         .cloned()
         .ok_or_else(|| {
             anyhow!(
