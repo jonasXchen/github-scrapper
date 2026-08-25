@@ -219,6 +219,7 @@ async fn run_check(
     commits_header: &str,
     active_header: &str,
     concurrency: usize,
+    continue_mode: bool,
 ) -> Result<()> {
     let columns = read_columns_from_sheet(sheets, spreadsheet_id, sheet_name, read_range).await?;
 
@@ -261,14 +262,42 @@ async fn run_check(
         commits_header, commits_col, active_header, active_col
     );
 
+    // Resume mode: rows whose commits column already holds a value are
+    // skipped, so a rerun only fills the gaps.
+    let existing: &[String] = if continue_mode {
+        columns
+            .get(commits_header)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[])
+    } else {
+        &[]
+    };
+
     // Row index in the sheet is +2: row 1 is the header, and `repos` starts at
     // the first data row.
+    let mut skipped = 0usize;
     let work: Vec<(usize, String)> = repos
         .into_iter()
         .enumerate()
+        .filter(|(_, r)| !r.trim().is_empty())
+        .filter(|(i, _)| {
+            let done = existing
+                .get(*i)
+                .map(|v| !v.trim().is_empty())
+                .unwrap_or(false);
+            if done {
+                skipped += 1;
+            }
+            !done
+        })
         .map(|(i, r)| (i + 2, r.trim().to_string()))
-        .filter(|(_, r)| !r.is_empty())
         .collect();
+    if continue_mode {
+        println!(
+            "Continue mode: skipping {} row(s) that already have '{}'.",
+            skipped, commits_header
+        );
+    }
 
     println!(
         "Measuring commit activity in [{}, {}] for {} repo owner(s) at concurrency {}...",
@@ -391,6 +420,9 @@ async fn main() -> Result<()> {
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(DEFAULT_CONCURRENCY);
+    let continue_mode = env::var("COMMIT_CONTINUE")
+        .map(|v| matches!(v.trim().to_lowercase().as_str(), "1" | "true" | "yes"))
+        .unwrap_or(false);
 
     let now = chrono::Utc::now();
     let to = now.to_rfc3339();
@@ -422,6 +454,7 @@ async fn main() -> Result<()> {
         &commits_header,
         &active_header,
         concurrency,
+        continue_mode,
     )
     .await?;
 
