@@ -344,7 +344,7 @@ async fn main() -> Result<()> {
                 if !update_data.is_empty() {
                     let response = ingest_via_logstash(
                         "https://elk.jonas-chen.com/logstash/",
-                        "ELK",
+                        &env::var("ES_APIKEY")?,
                         &serde_json::to_value(&update_data)?,
                     )
                     .await?;
@@ -479,7 +479,7 @@ async fn main() -> Result<()> {
                             );
                             let response = ingest_via_logstash(
                                 "https://elk.jonas-chen.com/logstash/",
-                                "ELK",
+                                &env::var("ES_APIKEY")?,
                                 &serde_json::to_value(&update_data)?,
                             )
                             .await?;
@@ -630,7 +630,7 @@ async fn main() -> Result<()> {
                         update_data.add_fields_if_exist(&cleaned_columns, &fields, data_row_idx);
                         let response = ingest_via_logstash(
                             "https://elk.jonas-chen.com/logstash/",
-                            "ELK",
+                            &env::var("ES_APIKEY")?,
                             &serde_json::to_value(&update_data)?,
                         )
                         .await?;
